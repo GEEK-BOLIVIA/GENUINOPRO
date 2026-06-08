@@ -1,0 +1,43 @@
+# Java / Spring Boot
+target/
+*.class
+*.jar
+*.war
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+
+# React / Vite
+node_modules/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+logs/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Variables y credenciales
+.env
+.env.*
+application-prod.properties
+application-local.properties
+
+# Base de datos / backups
+*.sql
+*.dump
+*.backup
+
+# Keycloak
+realm-export.json
+
+# Archivos comprimidos
+*.zip

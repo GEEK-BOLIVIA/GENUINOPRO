@@ -1,0 +1,89 @@
+.login-pf body,
+body {
+  background: #f4f6f8 !important;
+}
+
+.login-pf-page {
+  background: #f4f6f8 !important;
+}
+
+#kc-header-wrapper {
+  display: none !important;
+}
+
+.login-pf-page .card-pf {
+  width: 420px !important;
+  max-width: 420px !important;
+  margin: 48px auto !important;
+  padding: 42px 32px !important;
+  background: #536473 !important;
+  color: #fff !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.18) !important;
+}
+
+#kc-page-title {
+  color: #fff !important;
+  text-align: center !important;
+  font-size: 32px !important;
+}
+
+#kc-page-title::after {
+  content: "Inicia sesión en Genuino PRO+";
+  display: block;
+  margin-top: 14px;
+  color: #dce3ea;
+  font-size: 18px;
+}
+
+.pf-v5-c-form__label,
+label {
+  color: #fff !important;
+}
+
+.pf-v5-c-form-control,
+input {
+  height: 44px !important;
+  border-radius: 0 !important;
+}
+
+#kc-login {
+  background: #e96b13 !important;
+  border: 0 !important;
+  height: 48px !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+#kc-page-title {
+  font-size: 0 !important;
+}
+
+#kc-page-title::before {
+  content: "Bienvenido";
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  display: block;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.card-pf::before {
+  content: "";
+  display: block;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px auto;
+  background: url("../img/logo.png") no-repeat center;
+  background-size: contain;
+}
+
+#kc-form-buttons::after {
+  content: "Soy Cliente";
+  display: block;
+  margin-top: 20px;
+  text-align: center;
+  color: #ff7a1a;
+  font-weight: 600;
+  cursor: pointer;
+}
