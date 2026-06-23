@@ -18,11 +18,11 @@ public class ProformaRateController {
         this.service = service;
     }
 
-    @GetMapping
-    public ResponseEntity<List<ProformaRate>> findByType(
-            @RequestParam(defaultValue = "LCL") String proformaType
+    @PatchMapping("/{id}/activate")
+    public ResponseEntity<ProformaRate> activate(
+            @PathVariable UUID id
     ) {
-        return ResponseEntity.ok(service.findByType(proformaType));
+        return ResponseEntity.ok(service.activate(id));
     }
 
     @PutMapping("/{id}")
@@ -46,5 +46,15 @@ public class ProformaRateController {
     ) {
         service.deactivate(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping
+    public ResponseEntity<List<ProformaRate>> findByType(
+            @RequestParam(defaultValue = "LCL") String proformaType,
+            @RequestParam(defaultValue = "false") boolean includeInactive
+    ) {
+        return ResponseEntity.ok(
+                service.findByType(proformaType, includeInactive)
+        );
     }
 }

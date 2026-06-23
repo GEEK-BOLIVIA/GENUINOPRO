@@ -14,6 +14,10 @@ public interface ProformaRateRepository extends JpaRepository<ProformaRate, UUID
             String proformaType
     );
 
+    List<ProformaRate> findByProformaTypeOrderByActiveDescRateTypeAscRangeFromAsc(
+            String proformaType
+    );
+
     Optional<ProformaRate> findFirstByProformaTypeAndRateTypeAndActiveTrueAndRangeFromLessThanEqualAndRangeToGreaterThanEqual(
             String proformaType,
             String rateType,

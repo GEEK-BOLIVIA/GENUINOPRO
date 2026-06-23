@@ -45,11 +45,12 @@ public class LclOperationalCalculationService {
                 .add(maritimeTransportUsd);
 
         BigDecimal customsTaxesBs = calculateCustomsTaxes(
-                merchandiseValueUsd,
-                maritimeTransportUsd,
-                request.getGaPercentage(),
-                request.getIvaPercentage(),
-                request.getIceAmountBs()
+            merchandiseValueUsd,
+            maritimeTransportUsd,
+            
+            request.getGaPercentage(),
+            request.getIvaPercentage(),
+            request.getIceAmountBs()
         );
 
         BigDecimal alboBs = calculateAlbo(request.getCbm());
@@ -121,8 +122,14 @@ public class LclOperationalCalculationService {
 
     private BigDecimal calculateBankCommission(BigDecimal fobBaseUsd, boolean customerPaysUsdCash) {
         if (!customerPaysUsdCash) {
+            BigDecimal percent = proformaRateService.findRatePrice(
+                    "LCL",
+                    "GIRO_PERCENT",
+                    fobBaseUsd
+            );
+
             return fobBaseUsd
-                    .multiply(new BigDecimal("0.07"))
+                    .multiply(percent.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP))
                     .setScale(2, RoundingMode.HALF_UP);
         }
 
@@ -213,51 +220,21 @@ public class LclOperationalCalculationService {
     private BigDecimal calculateAlbo(BigDecimal cbmValue) {
         BigDecimal cbm = money(cbmValue);
 
-        if (between(cbm, "0.01", "0.5")) return bd("700");
-        if (gt(cbm, "0.5") && lte(cbm, "1")) return bd("1050");
-        if (gt(cbm, "1") && lte(cbm, "2")) return bd("1200");
-        if (gt(cbm, "2") && lte(cbm, "3")) return bd("1500");
-        if (gt(cbm, "3") && lte(cbm, "4")) return bd("2000");
-        if (gt(cbm, "4") && lte(cbm, "5")) return bd("2800");
-        if (gt(cbm, "5") && lte(cbm, "6")) return bd("3200");
-        if (gt(cbm, "6") && lte(cbm, "7")) return bd("3800");
-        if (gt(cbm, "7") && lte(cbm, "8")) return bd("4200");
-        if (gt(cbm, "8") && lte(cbm, "9")) return bd("5050");
-        if (gt(cbm, "9") && lte(cbm, "10")) return bd("5500");
-        if (gt(cbm, "10") && lte(cbm, "11")) return bd("5600");
-        if (gt(cbm, "11") && lte(cbm, "12")) return bd("5700");
-        if (gt(cbm, "12") && lte(cbm, "13")) return bd("5800");
-        if (gt(cbm, "13") && lte(cbm, "14")) return bd("5900");
-        if (gt(cbm, "14") && lte(cbm, "15")) return bd("6000");
-        if (gt(cbm, "15") && lte(cbm, "16")) return bd("6100");
-        if (gt(cbm, "16") && lte(cbm, "17")) return bd("6200");
-        if (gt(cbm, "17") && lte(cbm, "18")) return bd("6300");
-        if (gt(cbm, "18") && lte(cbm, "19")) return bd("6400");
-        if (gt(cbm, "19") && lte(cbm, "20")) return bd("6500");
-        if (gt(cbm, "20") && lte(cbm, "21")) return bd("6600");
-        if (gt(cbm, "21") && lte(cbm, "68")) return bd("8000");
-
-        return bd("8000");
+        return proformaRateService.findRatePrice(
+                "LCL",
+                "ALBO",
+                cbm
+        ).setScale(2, RoundingMode.HALF_UP);
     }
 
     private BigDecimal calculateGenuinoCommission(BigDecimal merchandiseValueUsd) {
         BigDecimal value = money(merchandiseValueUsd);
 
-        if (lte(value, "500")) return bd("700");
-        if (lte(value, "1000")) return bd("1500");
-        if (lte(value, "2000")) return bd("2000");
-        if (lte(value, "3000")) return bd("2800");
-        if (lte(value, "4000")) return bd("3500");
-        if (lte(value, "5000")) return bd("4500");
-        if (lte(value, "6000")) return bd("5500");
-        if (lte(value, "7000")) return bd("6500");
-        if (lte(value, "8000")) return bd("7500");
-        if (lte(value, "9000")) return bd("8500");
-        if (lte(value, "11000")) return bd("10000");
-        if (lte(value, "12000")) return bd("10000");
-        if (lte(value, "20000")) return bd("15000");
-
-        return bd("15000");
+        return proformaRateService.findRatePrice(
+                "LCL",
+                "COMISION_GENUINO",
+                value
+        ).setScale(2, RoundingMode.HALF_UP);
     }
 
     private List<LclOperationalGeneratedLine> buildLines(

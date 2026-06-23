@@ -67,6 +67,16 @@ public class LeadController {
                 .toList();
     }
 
+        @GetMapping("/api/leads/{leadId}")
+        public Map<String, Object> getLeadById(
+                @PathVariable String leadId
+        ) {
+
+        LeadInbox lead = leadInboxRepository.findById(leadId)
+                .orElseThrow(() -> new RuntimeException("Lead no encontrado"));
+
+        return toLeadResponse(lead);
+        }
 
     @GetMapping("/api/leads/{leadId}/commercial-summary")
     public CommercialSummaryResponse getCommercialSummary(
