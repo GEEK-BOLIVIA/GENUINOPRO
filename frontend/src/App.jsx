@@ -18,6 +18,9 @@ import TasksPage from './pages/TasksPage';
 
 import Opportunity360Page from './pages/Opportunity360Page';
 
+import FclPage from './pages/FclPage';
+
+
 export default function App() {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -45,6 +48,7 @@ export default function App() {
     location.pathname.startsWith('/inbox') ? 'INBOX' :
     location.pathname.startsWith('/pipeline') ? 'PIPELINE' :
     location.pathname.startsWith('/lcl') ? 'LCL' :
+    location.pathname.startsWith('/fcl') ? 'LCL' :
     location.pathname.startsWith('/parameters') ? 'PARAMETERS' :
     location.pathname.startsWith('/admin/users') ? 'ADMIN_USERS' :
     location.pathname.startsWith('/tasks') ? 'TASKS' :
@@ -78,6 +82,12 @@ export default function App() {
         <Route path="/tasks" element={<TasksPage />} />
 
         <Route path="/account" element={<MyAccountPage />} />
+
+        <Route path="/fcl" element={<FclPage />} />
+        <Route path="/fcl/nueva" element={<FclPage mode="new" />} />
+        <Route path="/fcl/editar/:id" element={<FclPage mode="edit" />} />
+        <Route path="/fcl/:id" element={<FclPage mode="detail" />} />
+
 
         <Route
           path="/parameters"

@@ -27,19 +27,31 @@ async function doFetch(endpoint, options = {}) {
 }
 
 export async function apiFetch(endpoint, options = {}) {
-  let response = await doFetch(endpoint, options);
+  const response = await doFetch(endpoint, options);
 
   if (response.status === 401) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    response = await doFetch(endpoint, options);
+    authToken = null;
+
+    window.location.reload();
+
+    throw new Error('Sesión expirada');
   }
 
   if (!response.ok) {
     const message = await response.text();
+
     throw new Error(message || `Error API ${response.status}`);
   }
 
-  if (response.status === 204) return null;
+  if (response.status === 204) {
+    return null;
+  }
 
-  return response.json();
+  const text = await response.text();
+
+  if (!text) {
+    return null;
+  }
+
+  return JSON.parse(text);
 }

@@ -1,8 +1,11 @@
 import { apiFetch } from './api';
 
-export async function getProformaRates(proformaType = 'LCL') {
+export async function getProformaRates(
+  proformaType = 'LCL',
+  includeInactive = false
+) {
   return apiFetch(
-    `/parameters/proforma-rates?proformaType=${proformaType}`
+    `/parameters/proforma-rates?proformaType=${proformaType}&includeInactive=${includeInactive}`
   );
 }
 
@@ -23,5 +26,11 @@ export async function updateProformaRate(id, payload) {
 export async function deleteProformaRate(id) {
   return apiFetch(`/parameters/proforma-rates/${id}`, {
     method: 'DELETE',
+  });
+}
+
+export async function activateProformaRate(id) {
+  return apiFetch(`/parameters/proforma-rates/${id}/activate`, {
+    method: 'PATCH',
   });
 }

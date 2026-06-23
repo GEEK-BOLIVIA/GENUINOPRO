@@ -11,9 +11,46 @@ import {
   Ship,
 } from 'lucide-react';
 
-import { getLclProformas } from '../services/lclService';
+import { getProformas } from '../services/proformaService';
 import LclProformaDetail from '../modules/proforma/lcl/LclProformaDetail';
 import LclOperationalSimulator from '../modules/proforma/lcl/LclOperationalSimulator';
+
+
+const PROFORMA_TYPES = [
+  {
+    key: 'LCL',
+    label: 'LCL',
+    description: 'Operativo',
+    createPath: '/lcl/nueva',
+    detailBasePath: '/lcl',
+    enabled: true,
+  },
+  {
+    key: 'FCL',
+    label: 'FCL',
+    description: 'Próximamente',
+    createPath: '/fcl/nueva',
+    detailBasePath: '/fcl',
+    enabled: true,
+  },
+  {
+    key: 'HBL',
+    label: 'HBL',
+    description: 'Próximamente',
+    createPath: '/hbl/nueva',
+    detailBasePath: '/hbl',
+    enabled: false,
+  },
+  {
+    key: 'AEREO',
+    label: 'Aéreo',
+    description: 'Próximamente',
+    createPath: '/aereo/nueva',
+    detailBasePath: '/aereo',
+    enabled: false,
+  },
+];
+
 
 export default function LclPage({ mode = 'list' }) {
   const { id } = useParams();
@@ -23,12 +60,24 @@ export default function LclPage({ mode = 'list' }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
-  async function loadProformas() {
+  const [activeType, setActiveType] = useState('LCL');
+
+  const activeTypeConfig = useMemo(
+    () => PROFORMA_TYPES.find((item) => item.key === activeType),
+    [activeType]
+  );
+
+    async function loadProformas() {
     try {
       setIsLoading(true);
       setError('');
 
-      const response = await getLclProformas();
+      if (!activeTypeConfig?.enabled) {
+        setProformas([]);
+        return;
+      }
+
+      const response = await getProformas(activeType);
       setProformas(Array.isArray(response) ? response : []);
     } catch (err) {
       console.error(err);
@@ -38,11 +87,12 @@ export default function LclPage({ mode = 'list' }) {
     }
   }
 
+
   useEffect(() => {
     if (mode === 'list') {
       loadProformas();
     }
-  }, [mode]);
+  }, [mode, activeType]);
 
   const stats = useMemo(() => {
     return {
@@ -133,11 +183,18 @@ export default function LclPage({ mode = 'list' }) {
           </button>
 
           <button
-            onClick={() => navigate('/lcl/nueva')}
+            onClick={() => {
+              if (!activeTypeConfig?.enabled) {
+                alert(`El módulo ${activeTypeConfig?.label} será implementado en el siguiente sprint.`);
+                return;
+              }
+
+              navigate(activeTypeConfig.createPath);
+            }}
             className="flex items-center gap-2 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600"
           >
             <Plus size={18} />
-            Nueva proforma LCL
+            Nueva proforma {activeTypeConfig?.label}
           </button>
         </div>
       </section>
@@ -173,26 +230,33 @@ export default function LclPage({ mode = 'list' }) {
       </section>
 
       <section className="grid gap-4 md:grid-cols-4">
-        <TypeTab active label="LCL" description="Operativo" />
-        <TypeTab label="FCL" description="Próximamente" />
-        <TypeTab label="Aéreo" description="Próximamente" />
-        <TypeTab label="Personalizada" description="Próximamente" />
+        {PROFORMA_TYPES.map((item) => (
+          <TypeTab
+            key={item.key}
+            active={activeType === item.key}
+            label={item.label}
+            description={item.description}
+            onClick={() => setActiveType(item.key)}
+          />
+        ))}
       </section>
 
       <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-6 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-black text-slate-900">
-              Bandeja de proformas LCL
+              Bandeja de proformas {activeTypeConfig?.label}
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Cotizaciones reales registradas en PostgreSQL.
+              {activeTypeConfig?.enabled
+                ? 'Cotizaciones reales registradas en PostgreSQL.'
+                : `El módulo ${activeTypeConfig?.label} está preparado para el siguiente sprint.`}
             </p>
           </div>
 
           <span className="w-fit rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700">
-            Tipo operativo actual: LCL
+            Tipo seleccionado: {activeTypeConfig?.label}
           </span>
         </div>
 
@@ -246,7 +310,7 @@ export default function LclPage({ mode = 'list' }) {
 
                     <td className="px-6 py-5">
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                        LCL
+                        {activeTypeConfig?.label}
                       </span>
                     </td>
 
@@ -266,18 +330,18 @@ export default function LclPage({ mode = 'list' }) {
                     </td>
 
                     <td className="px-6 py-5">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-bold ${
-                          item.statusColor || 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {item.status || item.rawStatus || 'Sin estado'}
-                      </span>
+                    <span
+                      className={`inline-flex min-w-fit whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold ${
+                        item.statusColor || 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {item.status || item.rawStatus || 'Sin estado'}
+                    </span>
                     </td>
 
                     <td className="px-6 py-5 text-right">
                       <button
-                        onClick={() => navigate(`/lcl/${item.id}`)}
+                        onClick={() => navigate(`${activeTypeConfig.detailBasePath}/${item.id}`)}
                         className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-700"
                       >
                         Ver detalle
@@ -327,13 +391,14 @@ function StatCard({ icon: Icon, title, value, description }) {
   );
 }
 
-function TypeTab({ active = false, label, description }) {
+function TypeTab({ active = false, label, description, onClick }) {
   return (
-    <div
-      className={`rounded-3xl border p-5 ${
+    <button
+      onClick={onClick}
+      className={`rounded-3xl border p-5 text-left transition ${
         active
           ? 'border-orange-200 bg-orange-50'
-          : 'border-slate-200 bg-white opacity-70'
+          : 'border-slate-200 bg-white opacity-70 hover:opacity-100 hover:border-orange-200'
       }`}
     >
       <p
@@ -347,6 +412,6 @@ function TypeTab({ active = false, label, description }) {
       <p className="mt-1 text-sm text-slate-500">
         {description}
       </p>
-    </div>
+    </button>
   );
 }

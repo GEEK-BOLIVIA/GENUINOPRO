@@ -239,19 +239,62 @@ export default function LeadDetailsModal({ lead, open, onClose }) {
     }
   }
 
+  function resolveActiveOpportunityId() {
+    const directOpportunityId = summary?.opportunity?.id;
+
+    if (directOpportunityId && String(directOpportunityId).startsWith('opp_')) {
+      return directOpportunityId;
+    }
+
+    return null;
+  }
+
+  function buildProformaRoute(type) {
+    const leadId = currentLead?.id || lead?.id;
+    const opportunityId = resolveActiveOpportunityId();
+
+    if (!leadId) {
+      alert('No se encontró el contacto activo.');
+      return null;
+    }
+
+    if (!opportunityId) {
+      alert('No se encontró la oportunidad comercial asociada a este requerimiento.');
+      return null;
+    }
+
+    const params = new URLSearchParams({
+      leadId,
+      opportunityId,
+    });
+
+    const routes = {
+      LCL: `/lcl/nueva?${params.toString()}`,
+      FCL: `/fcl/nueva?${params.toString()}`,
+      HBL: `/hbl/nueva?${params.toString()}`,
+      AEREO: `/aereo/nueva?${params.toString()}`,
+      CUSTOM: `/proformas/nueva?${params.toString()}`,
+    };
+
+    return routes[type] || null;
+  }
+
   function handleCreateLcl() {
-    navigate(`/lcl/nueva?leadId=${currentLeadId}`);
+    const route = buildProformaRoute('LCL');
+
+    if (!route) return;
+
+    navigate(route);
     onClose?.();
   }
 
   function handleCreateProforma(type) {
-    if (type === 'LCL') {
-      navigate(`/lcl/nueva?leadId=${currentLeadId}`);
-      onClose?.();
-      return;
-    }
+    const route = buildProformaRoute(type);
 
-    alert(`El tipo de proforma ${type} estará disponible próximamente.`);
+    if (!route) return;
+
+    navigate(route);
+    onClose?.();
   }
 
   const groupedActivities = activities.reduce((groups, activity) => {
@@ -636,7 +679,7 @@ const selectedRequirementDate = selectedRequirement
                 </div>
 
                 <div className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-orange-600">
-                  ID requerimiento #{selectedRequirement.id}
+                  ID oportunidad #{resolveActiveOpportunityId() || 'Sin oportunidad'}
                 </div>
               </div>
             </div>
@@ -948,7 +991,16 @@ const selectedRequirementDate = selectedRequirement
                       </div>
 
                       <button
-                        onClick={() => navigate(`/lcl/${proforma.id}`)}
+                        onClick={() => {
+                          const detailRoutes = {
+                            LCL: `/lcl/${proforma.id}`,
+                            FCL: `/fcl/${proforma.id}`,
+                            HBL: `/hbl/${proforma.id}`,
+                            AEREO: `/aereo/${proforma.id}`,
+                          };
+
+                          navigate(detailRoutes[proforma.type] || `/lcl/${proforma.id}`);
+                        }}
                         className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white"
                       >
                         Ver detalle

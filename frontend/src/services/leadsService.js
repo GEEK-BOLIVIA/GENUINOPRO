@@ -9,6 +9,10 @@ export async function getLeads() {
   }
 }
 
+export async function getLeadById(id) {
+  return apiFetch(`/leads/${id}`);
+}
+
 export async function createLead(payload) {
   return apiFetch('/leads', {
     method: 'POST',
@@ -22,3 +26,4 @@ export async function updateLeadStatus(leadId, status) {
     body: JSON.stringify({ status }),
   });
 }
+

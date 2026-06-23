@@ -10,6 +10,8 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(null);
 
   useEffect(() => {
+    let refreshInterval = null;
+
     keycloak
       .init({
         onLoad: 'login-required',
@@ -22,12 +24,35 @@ export function AuthProvider({ children }) {
         setToken(currentToken);
         setApiToken(currentToken);
 
+        refreshInterval = setInterval(async () => {
+          try {
+            const refreshed = await keycloak.updateToken(60);
+
+            if (refreshed) {
+              const refreshedToken = keycloak.token || null;
+
+              setToken(refreshedToken);
+              setApiToken(refreshedToken);
+            }
+          } catch (error) {
+            console.error('Error renovando token Keycloak', error);
+            setApiToken(null);
+            keycloak.login();
+          }
+        }, 30000);
+
         setReady(true);
       })
       .catch((error) => {
         console.error('Keycloak init error', error);
         setReady(true);
       });
+
+    return () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    };
   }, []);
 
   async function refreshToken() {

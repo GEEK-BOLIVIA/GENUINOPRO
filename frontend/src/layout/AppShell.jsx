@@ -21,6 +21,13 @@ export default function AppShell({ currentPage, setCurrentPage, children }) {
   const hasRole = (...allowedRoles) =>
     allowedRoles.some((role) => roles.includes(role));
 
+  const isProformasActive =
+    location.pathname.startsWith('/proformas') ||
+    location.pathname.startsWith('/lcl') ||
+    location.pathname.startsWith('/fcl') ||
+    location.pathname.startsWith('/hbl') ||
+    location.pathname.startsWith('/aereo');
+
   const menu = [
     { key: 'DASHBOARD', label: 'Dashboard', icon: LayoutDashboard },
 
@@ -57,6 +64,8 @@ export default function AppShell({ currentPage, setCurrentPage, children }) {
       label: 'Mi Cuenta',
       icon: User,
     },
+
+    
   ];
 
   const currentLabel =

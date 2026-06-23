@@ -7,6 +7,7 @@ import {
   Pencil,
   Trash2,
   Settings,
+  RotateCcw,
 } from 'lucide-react';
 
 import {
@@ -14,7 +15,10 @@ import {
   createProformaRate,
   updateProformaRate,
   deleteProformaRate,
+  activateProformaRate,
 } from '../services/parametersApi';
+
+
 
 const PROFORMA_TYPES = [
   { key: 'LCL', label: 'LCL', description: 'Carga consolidada por CBM o TON' },
@@ -24,10 +28,39 @@ const PROFORMA_TYPES = [
 ];
 
 const RATE_OPTIONS = {
-  LCL: ['CBM', 'TON'],
-  FCL: ['FCL20', 'FCL40', 'FCL40HQ', 'ALBO', 'ADA', 'COMISION'],
-  HBL: ['EMISION_HBL', 'HANDLING', 'DOCUMENTACION'],
-  AEREO: ['PESO_REAL', 'PESO_VOLUMETRICO', 'AWB', 'HANDLING'],
+  LCL: [
+    'CBM',
+    'TON',
+    'GIRO_PERCENT',
+    'ALBO',
+    'COMISION_GENUINO',
+  ],
+
+  FCL: [
+    'FCL20',
+    'FCL40',
+    'FCL40HQ',
+    'ALBO',
+    'ADA',
+    'DESPACHANTE',
+    'GASTOS_EXTRA_NIT',
+    'COMISION_GENUINO',
+    'COMISION_GIRO_CHILE',
+    'GIRO_ALIBABA_PERCENT',
+  ],
+
+  HBL: [
+    'EMISION_HBL',
+    'HANDLING',
+    'DOCUMENTACION',
+  ],
+
+  AEREO: [
+    'PESO_REAL',
+    'PESO_VOLUMETRICO',
+    'AWB',
+    'HANDLING',
+  ],
 };
 
 const emptyForm = {
@@ -55,10 +88,12 @@ export default function ParametersPage() {
     [activeType]
   );
 
+  const [includeInactive, setIncludeInactive] = useState(false);
+
   async function loadRates(type = activeType) {
     try {
       setLoading(true);
-      const data = await getProformaRates(type);
+      const data = await getProformaRates(type, includeInactive);
       setRates(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error(error);
@@ -70,7 +105,7 @@ export default function ParametersPage() {
 
   useEffect(() => {
     loadRates(activeType);
-  }, [activeType]);
+  }, [activeType, includeInactive]);
 
   function openCreateModal() {
     setForm({
@@ -163,6 +198,16 @@ export default function ParametersPage() {
     }
   }
 
+  async function handleActivate(rate) {
+    try {
+      await activateProformaRate(rate.id);
+      await loadRates(activeType);
+    } catch (error) {
+      console.error(error);
+      alert('No se pudo reactivar la tarifa.');
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
@@ -185,6 +230,17 @@ export default function ParametersPage() {
           >
             <RefreshCw size={17} />
             Actualizar
+          </button>
+
+          <button
+            onClick={() => setIncludeInactive((prev) => !prev)}
+            className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold ${
+              includeInactive
+                ? 'border-orange-200 bg-orange-50 text-orange-700'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            {includeInactive ? 'Mostrando inactivas' : 'Ver inactivas'}
           </button>
 
           <button
@@ -297,9 +353,15 @@ export default function ParametersPage() {
                       {rate.currency}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-                        Activa
-                      </span>
+                      {rate.active ? (
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                          Activa
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+                          Inactiva
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-end gap-2">
@@ -310,13 +372,23 @@ export default function ParametersPage() {
                         >
                           <Pencil size={16} />
                         </button>
-                        <button
-                          onClick={() => handleDeactivate(rate)}
-                          className="rounded-xl border border-red-100 p-2 text-red-600 hover:bg-red-50"
-                          title="Desactivar"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {rate.active ? (
+                          <button
+                            onClick={() => handleDeactivate(rate)}
+                            className="rounded-xl border border-red-100 p-2 text-red-600 hover:bg-red-50"
+                            title="Desactivar"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleActivate(rate)}
+                            className="rounded-xl border border-emerald-100 p-2 text-emerald-600 hover:bg-emerald-50"
+                            title="Reactivar"
+                          >
+                            <RotateCcw size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -467,4 +539,6 @@ export default function ParametersPage() {
       )}
     </div>
   );
+
+
 }

@@ -6,7 +6,10 @@ import {
   createOperationalLclProforma,
 } from '../../../services/lclService';
 
-import { getLeads } from '../../../services/leadsService';
+import {
+  getLeads,
+  getLeadById,
+} from '../../../services/leadsService';
 import { getOpportunity } from '../../../services/opportunityApi';
 
 const initialForm = {
@@ -116,19 +119,38 @@ export default function LclOperationalSimulator() {
 
         try {
 
-        if (opportunityId) {
-
-            const opportunity = await getOpportunity(opportunityId);
+          if (leadId) {
+            const lead = await getLeadById(leadId);
 
             setForm((prev) => ({
-            ...prev,
-            opportunityId,
-            customerName: opportunity.title || '',
-            advisorName: opportunity.ownerUserId || '',
+              ...prev,
+              leadId: lead.id,
+              customerId: lead.id,
+              opportunityId,
+
+              customerName:
+                lead.company ||
+                lead.contact ||
+                lead.fullName ||
+                '',
+
+              customerPhone:
+                lead.phone ||
+                '',
+
+              advisorName:
+                lead.owner ||
+                lead.assignedSellerName ||
+                '',
+
+              productName:
+                lead.messagePreview ||
+                prev.productName ||
+                '',
             }));
 
             return;
-        }
+          }
 
         if (leadId) {
 
