@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.RoundingMode;
 
+import com.genuino.crm.quoting.common.service.ProformaAccessService;
+
 @Service
 public class TypedFclProformaService {
 
@@ -27,28 +29,43 @@ public class TypedFclProformaService {
     private final TypedProformaRepository typedProformaRepository;
     private final OpportunityRepository opportunityRepository;
     private final CommercialTaskService commercialTaskService;
+    private final ProformaAccessService proformaAccessService;
 
     public TypedFclProformaService(
             TypedFclProformaRepository repository,
             ProformaRateService rateService,
             TypedProformaRepository typedProformaRepository,
             OpportunityRepository opportunityRepository,
-            CommercialTaskService commercialTaskService
+            CommercialTaskService commercialTaskService,
+            ProformaAccessService proformaAccessService
     ) {
         this.repository = repository;
         this.rateService = rateService;
         this.typedProformaRepository = typedProformaRepository;
         this.opportunityRepository = opportunityRepository;
         this.commercialTaskService = commercialTaskService;
+        this.proformaAccessService = proformaAccessService;
     }
 
     @Transactional(readOnly = true)
     public List<TypedFclProforma> findAll() {
-        return repository.findAllByOrderByCreatedAtDesc();
+        return repository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .filter(item -> {
+                    try {
+                        proformaAccessService.getAuthorizedProforma(item.getId());
+                        return true;
+                    } catch (Exception ex) {
+                        return false;
+                    }
+                })
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public TypedFclProforma findById(UUID id) {
+        proformaAccessService.getAuthorizedProforma(id);
+
         return repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Proforma FCL no encontrada"));
     }

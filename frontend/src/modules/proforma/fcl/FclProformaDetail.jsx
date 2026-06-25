@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileText, PackageCheck } from 'lucide-react';
 import {
   getFclProformaById,
@@ -23,6 +23,7 @@ import {
   getProformaAttachments,
   createProformaAttachment,
   deleteProformaAttachment,
+  uploadProformaAttachmentImage,
 } from '../../../services/proformaAttachmentService';
 
 
@@ -41,6 +42,15 @@ export default function FclProformaDetail({ id }) {
     title: '',
     description: '',
   });
+
+  const [imageForm, setImageForm] = useState({
+    attachmentType: 'PRODUCT_IMAGE',
+    title: '',
+    description: '',
+    file: null,
+  });
+
+  const imageFileRef = useRef(null);
 
   useEffect(() => {
     async function load() {
@@ -157,6 +167,7 @@ async function handleSaveAttachment() {
     return;
   }
 
+
   await createProformaAttachment(id, {
     attachmentType: 'ALIBABA_LINK',
     title: newAttachment.title || 'Link Alibaba',
@@ -171,6 +182,39 @@ async function handleSaveAttachment() {
     description: '',
   });
 
+  await loadAttachments();
+}
+
+async function handleUploadImage() {
+  const file = imageFileRef.current?.files?.[0];
+
+  if (!file) {
+    alert('Debes seleccionar una imagen.');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('attachmentType', imageForm.attachmentType);
+  formData.append('title', imageForm.title || 'Imagen de producto');
+  formData.append('description', imageForm.description || '');
+
+  await uploadProformaAttachmentImage(
+    id,
+    formData
+  );
+
+
+  setImageForm({
+    attachmentType: 'PRODUCT_IMAGE',
+    title: '',
+    description: '',
+    file: null,
+  });
+
+  if (imageFileRef.current) {
+    imageFileRef.current.value = '';
+  }
   await loadAttachments();
 }
 
@@ -433,6 +477,68 @@ async function handleDeleteAttachment(attachmentId) {
             </button>
           </div>
 
+          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+            <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">
+              Imágenes del producto/proveedor
+            </h3>
+
+            <div className="mt-4 grid gap-3">
+              <select
+                value={imageForm.attachmentType}
+                onChange={(e) =>
+                  setImageForm((prev) => ({
+                    ...prev,
+                    attachmentType: e.target.value,
+                  }))
+                }
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3"
+              >
+                <option value="PRODUCT_IMAGE">Imagen del producto</option>
+                <option value="SUPPLIER_IMAGE">Imagen del proveedor</option>
+              </select>
+
+              <input
+                type="text"
+                value={imageForm.title}
+                onChange={(e) =>
+                  setImageForm((prev) => ({
+                    ...prev,
+                    title: e.target.value,
+                  }))
+                }
+                placeholder="Título de la imagen"
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3"
+              />
+
+              <textarea
+                value={imageForm.description}
+                onChange={(e) =>
+                  setImageForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                placeholder="Descripción u observación de la imagen"
+                rows={2}
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3"
+              />
+
+                <input
+                  ref={imageFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3"
+                />
+
+              <button
+                type="button"
+                onClick={handleUploadImage}
+                className="rounded-2xl bg-slate-900 px-5 py-3 font-black text-white hover:bg-slate-800"
+              >
+                Subir imagen
+              </button>
+            </div>
+          </div>
           <div className="mt-6 space-y-3">
             {attachments.length === 0 && (
               <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -450,6 +556,14 @@ async function handleDeleteAttachment(attachmentId) {
                     {attachment.title}
                   </p>
 
+                {attachment.attachmentType === 'PRODUCT_IMAGE' ||
+                attachment.attachmentType === 'SUPPLIER_IMAGE' ? (
+                  <img
+                    src={`http://localhost:8081${attachment.attachmentUrl}`}
+                    alt={attachment.title || 'Imagen adjunta'}
+                    className="mt-3 h-40 w-40 rounded-2xl border border-slate-200 object-cover"
+                  />
+                ) : (
                   <a
                     href={attachment.attachmentUrl}
                     target="_blank"
@@ -458,6 +572,7 @@ async function handleDeleteAttachment(attachmentId) {
                   >
                     {attachment.attachmentUrl}
                   </a>
+                )}
 
                   {attachment.description && (
                     <p className="mt-2 text-sm text-slate-500">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
 import { apiFetch } from '../../../services/api';
 
@@ -20,6 +20,15 @@ import {
   markOpportunityAsClient,
 } from '../../../services/clientService';
 
+import {
+  getProformaAttachments,
+  createProformaAttachment,
+  deleteProformaAttachment,
+  uploadProformaAttachmentImage,
+} from '../../../services/proformaAttachmentService';
+
+import EnterprisePageHeader from '../../../components/enterprise/EnterprisePageHeader';
+
 export default function LclProformaDetail({ id }) {
   const [data, setData] = useState(null);
   const [editableLines, setEditableLines] = useState([]);
@@ -31,6 +40,23 @@ export default function LclProformaDetail({ id }) {
   const [clientExists, setClientExists] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
   const [activeTab, setActiveTab] = useState('Resumen');
+
+  const [attachments, setAttachments] = useState([]);
+
+  const [newAttachment, setNewAttachment] = useState({
+    attachmentType: 'ALIBABA_LINK',
+    attachmentUrl: '',
+    title: '',
+    description: '',
+  });
+
+  const [imageForm, setImageForm] = useState({
+    attachmentType: 'PRODUCT_IMAGE',
+    title: '',
+    description: '',
+  });
+
+  const imageFileRef = useRef(null);
 
     const auth = useAuth();
     const userRoles = auth?.roles || [];
@@ -64,6 +90,10 @@ export default function LclProformaDetail({ id }) {
 
   useEffect(() => {
     loadDetail();
+  }, [id]);
+
+  useEffect(() => {
+    loadAttachments();
   }, [id]);
 
   function handleLineChange(index, field, value) {
@@ -294,40 +324,92 @@ export default function LclProformaDetail({ id }) {
     }
   }
 
+  async function loadAttachments() {
+    if (!id) return;
+    const response = await getProformaAttachments(id);
+    setAttachments(Array.isArray(response) ? response : []);
+  }
+
+  async function handleSaveAttachment() {
+    if (!newAttachment.attachmentUrl.trim()) {
+      alert('El link es obligatorio.');
+      return;
+    }
+
+    await createProformaAttachment(id, {
+      attachmentType: 'ALIBABA_LINK',
+      title: newAttachment.title || 'Link Alibaba',
+      attachmentUrl: newAttachment.attachmentUrl,
+      description: newAttachment.description || '',
+    });
+
+    setNewAttachment({
+      attachmentType: 'ALIBABA_LINK',
+      attachmentUrl: '',
+      title: '',
+      description: '',
+    });
+
+    await loadAttachments();
+  }
+
+  async function handleUploadImage() {
+    const file = imageFileRef.current?.files?.[0];
+
+    if (!file) {
+      alert('Debes seleccionar una imagen.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('attachmentType', imageForm.attachmentType);
+    formData.append('title', imageForm.title || 'Imagen de producto');
+    formData.append('description', imageForm.description || '');
+
+    await uploadProformaAttachmentImage(id, formData);
+
+    setImageForm({
+      attachmentType: 'PRODUCT_IMAGE',
+      title: '',
+      description: '',
+    });
+
+    if (imageFileRef.current) {
+      imageFileRef.current.value = '';
+    }
+
+    await loadAttachments();
+  }
+
+  async function handleDeleteAttachment(attachmentId) {
+    await deleteProformaAttachment(id, attachmentId);
+    await loadAttachments();
+  }
+
   return (
     <div className="mt-8 rounded-3xl bg-white p-6 text-slate-900 shadow">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-black">Detalle Proforma LCL</h2>
-          <p className="mt-1 text-xs text-slate-400">{data.id}</p>
-        </div>
-
-        <div className="mb-6 flex flex-wrap gap-2">
-
-          {[
-            'Resumen',
-            'Cálculo',
-            'Workflow',
-          ].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-xl px-4 py-2 text-sm font-bold ${
-                activeTab === tab
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-
-        </div>
-
-        <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
-          {statusLabel}
-        </span>
-      </div>
+    <EnterprisePageHeader
+      title="Proforma LCL"
+      subtitle={`Código: ${data.code || data.id}`}
+      statusLabel={statusLabel}
+      tabs={['Resumen', 'Cálculo', 'Producto y proveedor', 'Workflow']}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      meta={[
+        { label: 'Cliente', value: data.customerName },
+        { label: 'Producto', value: data.cargoDescription },
+        { label: 'Asesor', value: data.sellerName },
+        { label: 'Origen', value: `${data.originCity || '-'} - ${data.originCountry || '-'}` },
+        { label: 'Destino', value: `${data.destinationCity || '-'} - ${data.destinationCountry || '-'}` },
+        {
+          label: 'Fecha',
+          value: data.createdAt
+            ? new Date(data.createdAt).toLocaleString()
+            : '-',
+        },
+      ]}
+    />
 
       {data.status === 'APPROVED' && (
         <div className="mb-4 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
@@ -347,41 +429,7 @@ export default function LclProformaDetail({ id }) {
         </div>
       )}
 
-        <div className="mb-6 grid gap-4 text-sm md:grid-cols-3">
-
-          <div>
-            <b>Cliente:</b><br/>
-            {data.customerName}
-          </div>
-
-          <div>
-            <b>Producto:</b><br/>
-            {data.cargoDescription || '-'}
-          </div>
-
-          <div>
-            <b>Asesor:</b><br/>
-            {data.sellerName || '-'}
-          </div>
-
-          <div>
-            <b>Origen:</b><br/>
-            {data.originCity} - {data.originCountry}
-          </div>
-
-          <div>
-            <b>Destino:</b><br/>
-            {data.destinationCity} - {data.destinationCountry}
-          </div>
-
-          <div>
-            <b>Fecha:</b><br/>
-            {data.createdAt
-              ? new Date(data.createdAt).toLocaleString()
-              : '-'}
-          </div>
-
-        </div>
+        
 
       <div className="mb-6 mt-6 grid gap-4 md:grid-cols-4">
         <div className="rounded-2xl bg-slate-100 p-4">
@@ -613,6 +661,153 @@ export default function LclProformaDetail({ id }) {
           </table>
         </section>
       </div>
+
+      {activeTab === 'Producto y proveedor' && (
+        <section className="rounded-2xl border border-slate-200 p-5">
+          <h3 className="mb-4 text-lg font-black">Producto y proveedor</h3>
+
+          <div className="grid gap-3">
+            <input
+              value={newAttachment.title}
+              onChange={(e) =>
+                setNewAttachment((prev) => ({ ...prev, title: e.target.value }))
+              }
+              placeholder="Título del enlace"
+              className="rounded-2xl border border-slate-300 px-4 py-3"
+            />
+
+            <input
+              value={newAttachment.attachmentUrl}
+              onChange={(e) =>
+                setNewAttachment((prev) => ({ ...prev, attachmentUrl: e.target.value }))
+              }
+              placeholder="https://www.alibaba.com/..."
+              className="rounded-2xl border border-slate-300 px-4 py-3"
+            />
+
+            <textarea
+              value={newAttachment.description}
+              onChange={(e) =>
+                setNewAttachment((prev) => ({ ...prev, description: e.target.value }))
+              }
+              placeholder="Descripción u observaciones"
+              rows={3}
+              className="rounded-2xl border border-slate-300 px-4 py-3"
+            />
+
+            <button
+              onClick={handleSaveAttachment}
+              className="rounded-2xl bg-orange-500 px-5 py-3 font-black text-white"
+            >
+              Guardar link
+            </button>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+            <h4 className="text-sm font-black uppercase text-slate-500">
+              Imágenes del producto/proveedor
+            </h4>
+
+            <div className="mt-4 grid gap-3">
+              <select
+                value={imageForm.attachmentType}
+                onChange={(e) =>
+                  setImageForm((prev) => ({ ...prev, attachmentType: e.target.value }))
+                }
+                className="rounded-2xl border border-slate-300 px-4 py-3"
+              >
+                <option value="PRODUCT_IMAGE">Imagen del producto</option>
+                <option value="SUPPLIER_IMAGE">Imagen del proveedor</option>
+              </select>
+
+              <input
+                value={imageForm.title}
+                onChange={(e) =>
+                  setImageForm((prev) => ({ ...prev, title: e.target.value }))
+                }
+                placeholder="Título de la imagen"
+                className="rounded-2xl border border-slate-300 px-4 py-3"
+              />
+
+              <textarea
+                value={imageForm.description}
+                onChange={(e) =>
+                  setImageForm((prev) => ({ ...prev, description: e.target.value }))
+                }
+                placeholder="Descripción de la imagen"
+                rows={2}
+                className="rounded-2xl border border-slate-300 px-4 py-3"
+              />
+
+              <input
+                ref={imageFileRef}
+                type="file"
+                accept="image/*"
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3"
+              />
+
+              <button
+                type="button"
+                onClick={handleUploadImage}
+                className="rounded-2xl bg-slate-900 px-5 py-3 font-black text-white"
+              >
+                Subir imagen
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {attachments.length === 0 && (
+              <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                No existen adjuntos asociados a esta proforma.
+              </div>
+            )}
+
+            {attachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="flex items-center justify-between rounded-2xl border border-slate-200 p-4"
+              >
+                <div>
+                  <p className="font-bold text-slate-900">{attachment.title}</p>
+
+                  {attachment.attachmentType === 'PRODUCT_IMAGE' ||
+                  attachment.attachmentType === 'SUPPLIER_IMAGE' ? (
+                    <img
+                      src={`http://localhost:8081${attachment.attachmentUrl}`}
+                      alt={attachment.title || 'Imagen adjunta'}
+                      className="mt-3 h-40 w-40 rounded-2xl border border-slate-200 object-cover"
+                    />
+                  ) : (
+                    <a
+                      href={attachment.attachmentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-blue-600 underline"
+                    >
+                      {attachment.attachmentUrl}
+                    </a>
+                  )}
+
+                  {attachment.description && (
+                    <p className="mt-2 text-sm text-slate-500">
+                      {attachment.description}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => handleDeleteAttachment(attachment.id)}
+                  className="rounded-xl bg-rose-500 px-3 py-2 text-xs font-black text-white"
+                >
+                  Eliminar
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="mt-5 flex items-center justify-between gap-4">
         <div className="text-xs text-slate-400">
           Las líneas editables se recalculan y guardan mientras la proforma esté en borrador.

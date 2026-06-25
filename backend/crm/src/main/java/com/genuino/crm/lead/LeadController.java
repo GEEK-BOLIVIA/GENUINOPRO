@@ -16,6 +16,9 @@ import com.genuino.crm.activity.LeadActivityService;
 import com.genuino.crm.opportunity.OpportunityTimelineService;
 import com.genuino.crm.opportunity.infra.OpportunityRepository;
 
+import com.genuino.crm.security.DataScopeService;
+import com.genuino.crm.lead.LeadAccessService;
+
 @RestController
 public class LeadController {
 
@@ -25,6 +28,8 @@ public class LeadController {
     private final OpportunityRepository opportunityRepository;
     private final OpportunityTimelineService opportunityTimelineService;
     private final CommercialSummaryService commercialSummaryService;
+    private final DataScopeService dataScopeService;
+    private final LeadAccessService leadAccessService;
 
     public LeadController(
             LeadInboxRepository leadInboxRepository,
@@ -32,7 +37,9 @@ public class LeadController {
             LeadActivityService leadActivityService,
             OpportunityRepository opportunityRepository,
             OpportunityTimelineService opportunityTimelineService,
-            CommercialSummaryService commercialSummaryService
+            CommercialSummaryService commercialSummaryService,
+            DataScopeService dataScopeService,
+            LeadAccessService leadAccessService
     ) {
         this.leadInboxRepository = leadInboxRepository;
         this.leadInboxService = leadInboxService;
@@ -40,12 +47,20 @@ public class LeadController {
         this.opportunityRepository = opportunityRepository;
         this.opportunityTimelineService = opportunityTimelineService;
         this.commercialSummaryService = commercialSummaryService;
+        this.dataScopeService = dataScopeService;
+        this.leadAccessService = leadAccessService;
     }
 
     @GetMapping("/api/leads")
     public List<Map<String, Object>> getLeads() {
 
-        return leadInboxRepository.findAll()
+        var leads = dataScopeService.canSeeEverything()
+                ? leadInboxRepository.findAll()
+                : leadInboxRepository.findByAssignedSellerIdOrderByReceivedAtDesc(
+                        dataScopeService.currentSeller()
+                );
+
+        return leads
                 .stream()
                 .collect(java.util.stream.Collectors.toMap(
                         lead -> lead.phone != null ? lead.phone : lead.id,
@@ -72,8 +87,13 @@ public class LeadController {
                 @PathVariable String leadId
         ) {
 
-        LeadInbox lead = leadInboxRepository.findById(leadId)
-                .orElseThrow(() -> new RuntimeException("Lead no encontrado"));
+        LeadInbox lead = leadAccessService.getAuthorizedLead(leadId);
+
+        if (dataScopeService.onlyMine()
+                && !dataScopeService.currentSeller().equals(lead.assignedSellerId)) {
+
+        throw new RuntimeException("No tiene permisos para acceder a este lead.");
+        }
 
         return toLeadResponse(lead);
         }

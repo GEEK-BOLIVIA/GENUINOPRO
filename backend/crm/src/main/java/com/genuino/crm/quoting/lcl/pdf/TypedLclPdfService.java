@@ -12,6 +12,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 
+import com.genuino.crm.quoting.common.domain.ProformaAttachment;
+
 @Service
 public class TypedLclPdfService {
 
@@ -21,7 +23,10 @@ public class TypedLclPdfService {
     private static final Color YELLOW = new Color(253, 224, 71);
     private static final Color BORDER = new Color(226, 232, 240);
 
-    public byte[] generate(TypedLclProformaDetailResponse data) {
+    public byte[] generate(
+            TypedLclProformaDetailResponse data,
+            List<ProformaAttachment> attachments
+    ) {
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Document document = new Document(PageSize.A4, 36, 36, 36, 36);
@@ -46,6 +51,9 @@ public class TypedLclPdfService {
             info.addCell(infoBox("Origen", data.getOriginCity(), labelFont, textFont));
             info.addCell(infoBox("Destino", data.getDestinationCity(), labelFont, textFont));
             document.add(info);
+            document.add(spacer(14));
+
+            addAttachmentsSection(document, attachments, whiteFont, labelFont, textFont);
             document.add(spacer(14));
 
             List<ChargeLineResponse> lines = data.getChargeLines() == null ? List.of() : data.getChargeLines();
@@ -275,5 +283,80 @@ public class TypedLclPdfService {
 
     private String safe(Object value) {
         return value == null ? "-" : value.toString();
+    }
+
+    private void addAttachmentsSection(
+            Document document,
+            List<ProformaAttachment> attachments,
+            Font whiteFont,
+            Font labelFont,
+            Font textFont
+    ) throws DocumentException {
+
+        if (attachments == null || attachments.isEmpty()) {
+            return;
+        }
+
+        PdfPTable titleTable = new PdfPTable(1);
+        titleTable.setWidthPercentage(100);
+
+        PdfPCell titleCell = new PdfPCell(new Phrase("PRODUCTO Y PROVEEDOR", whiteFont));
+        titleCell.setBackgroundColor(NAVY);
+        titleCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        titleCell.setPadding(8);
+        titleTable.addCell(titleCell);
+
+        document.add(titleTable);
+
+        PdfPTable table = new PdfPTable(1);
+        table.setWidthPercentage(100);
+
+        for (ProformaAttachment attachment : attachments) {
+            PdfPCell cell = new PdfPCell();
+            cell.setPadding(8);
+            cell.setBorderColor(BORDER);
+            cell.setBackgroundColor(LIGHT);
+
+            String title = attachment.getTitle() != null && !attachment.getTitle().isBlank()
+                    ? attachment.getTitle()
+                    : "Adjunto de referencia";
+
+            cell.addElement(new Paragraph(title, labelFont));
+
+            boolean isImage =
+                    "PRODUCT_IMAGE".equalsIgnoreCase(attachment.getAttachmentType())
+                            || "SUPPLIER_IMAGE".equalsIgnoreCase(attachment.getAttachmentType());
+
+            if (isImage && attachment.getAttachmentUrl() != null && !attachment.getAttachmentUrl().isBlank()) {
+                try {
+                    String relativePath = attachment
+                            .getAttachmentUrl()
+                            .replaceFirst("^/uploads/", "uploads/");
+
+                    Image image = Image.getInstance(relativePath);
+                    image.scaleToFit(140, 140);
+                    image.setSpacingBefore(6);
+                    image.setSpacingAfter(6);
+                    cell.addElement(image);
+                } catch (Exception ex) {
+                    cell.addElement(new Paragraph(
+                            "Imagen no disponible: " + attachment.getAttachmentUrl(),
+                            textFont
+                    ));
+                }
+            } else if (attachment.getAttachmentUrl() != null && !attachment.getAttachmentUrl().isBlank()) {
+                cell.addElement(new Paragraph(attachment.getAttachmentUrl(), textFont));
+            }
+
+            if (attachment.getDescription() != null && !attachment.getDescription().isBlank()) {
+                Paragraph description = new Paragraph(attachment.getDescription(), textFont);
+                description.setSpacingBefore(4);
+                cell.addElement(description);
+            }
+
+            table.addCell(cell);
+        }
+
+        document.add(table);
     }
 }

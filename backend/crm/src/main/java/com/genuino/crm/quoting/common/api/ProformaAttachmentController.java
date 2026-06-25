@@ -7,6 +7,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
+
+
 @RestController
 @RequestMapping("/api/proformas/{typedProformaId}/attachments")
 public class ProformaAttachmentController {
@@ -29,6 +33,26 @@ public class ProformaAttachmentController {
     ) {
         request.setTypedProformaId(typedProformaId);
         return service.create(request);
+    }
+
+    @PostMapping(
+            value = "/image",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ProformaAttachment uploadImage(
+            @PathVariable UUID typedProformaId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("attachmentType") String attachmentType,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam(value = "description", required = false) String description
+    ) {
+        return service.uploadImage(
+                typedProformaId,
+                file,
+                attachmentType,
+                title,
+                description
+        );
     }
 
     @DeleteMapping("/{attachmentId}")

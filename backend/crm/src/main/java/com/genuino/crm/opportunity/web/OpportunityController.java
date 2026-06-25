@@ -23,6 +23,9 @@ import java.util.Map;
 
 import java.util.List;
 
+import com.genuino.crm.security.DataScopeService;
+import com.genuino.crm.opportunity.OpportunityAccessService;
+
 @RestController
 @RequestMapping("/api/opportunities")
 public class OpportunityController {
@@ -35,6 +38,9 @@ public class OpportunityController {
 
     private final TypedProformaRepository typedProformaRepository;
 
+    private final DataScopeService dataScopeService;
+    private final OpportunityAccessService opportunityAccessService;
+
 
     
     public OpportunityController(
@@ -43,7 +49,9 @@ public class OpportunityController {
             ProformaRepository proformaRepository,
             OpportunityTimelineService timelineService,
             OpportunityConversionService conversionService,
-            TypedProformaRepository typedProformaRepository
+            TypedProformaRepository typedProformaRepository,
+            DataScopeService dataScopeService,
+            OpportunityAccessService opportunityAccessService
     ) {
         this.repo = repo;
         this.pipelineService = pipelineService;
@@ -51,19 +59,28 @@ public class OpportunityController {
         this.timelineService = timelineService;
         this.conversionService = conversionService;
         this.typedProformaRepository = typedProformaRepository;
+        this.dataScopeService = dataScopeService;
+        this.opportunityAccessService = opportunityAccessService;
     }
 
 
     @PreAuthorize("hasAnyRole('VENDEDOR','GERENCIA','ADMIN')")
     @GetMapping
     public List<Opportunity> list() {
-        return repo.findAll();
+
+        if (dataScopeService.canSeeEverything()) {
+            return repo.findAll();
+        }
+
+        return repo.findByOwnerUserIdOrderByUpdatedAtDesc(
+                dataScopeService.currentSeller()
+        );
     }
 
     @PreAuthorize("hasAnyRole('VENDEDOR','GERENCIA','ADMIN')")
     @GetMapping("/{id}")
     public Opportunity getById(@PathVariable String id) {
-        return repo.findById(id).orElseThrow();
+        return opportunityAccessService.getAuthorizedOpportunity(id);
     }
 
     @PreAuthorize("hasAnyRole('VENDEDOR','GERENCIA','ADMIN')")
@@ -72,6 +89,8 @@ public class OpportunityController {
             @PathVariable String id,
             @Valid @RequestBody OpportunityStagePatchRequest req
     ) {
+    opportunityAccessService.getAuthorizedOpportunity(id);
+
         return pipelineService.changeStage(id, req);
     }
 
@@ -81,12 +100,16 @@ public class OpportunityController {
             @PathVariable String id,
             @Valid @RequestBody OpportunityCloseLostRequest req
     ) {
-        return pipelineService.closeLost(id, req);
+    opportunityAccessService.getAuthorizedOpportunity(id);
+
+    return pipelineService.closeLost(id, req);
     }
 
     @PreAuthorize("hasAnyRole('VENDEDOR','GERENCIA','ADMIN')")
     @GetMapping("/{id}/proformas")
     public List<Proforma> proformasByOpportunity(@PathVariable String id) {
+       opportunityAccessService.getAuthorizedOpportunity(id);
+
         return proformaRepository.findByOpportunityId(id);
     }
 
@@ -95,13 +118,18 @@ public class OpportunityController {
     public List<TypedProforma> typedProformas(
             @PathVariable String id
     ) {
-        return typedProformaRepository
-                .findByOpportunityIdOrderByCreatedAtDesc(id);
-    }
+    opportunityAccessService.getAuthorizedOpportunity(id);
+
+    return typedProformaRepository
+            .findByOpportunityIdOrderByCreatedAtDesc(id);
+        }
 
     @PreAuthorize("hasAnyRole('VENDEDOR','GERENCIA','ADMIN')")
     @GetMapping("/{id}/timeline")
     public OpportunityTimelineResponse timeline(@PathVariable String id) {
+
+        opportunityAccessService.getAuthorizedOpportunity(id);
+
         return timelineService.getTimeline(id);
     }
 
@@ -112,7 +140,7 @@ public class OpportunityController {
     ) {
 
         Opportunity opportunity =
-                repo.findById(id).orElseThrow();
+            opportunityAccessService.getAuthorizedOpportunity(id);
 
         var typedProformas =
                 typedProformaRepository
@@ -139,7 +167,9 @@ public class OpportunityController {
     @PreAuthorize("hasAnyRole('VENDEDOR','GERENCIA','ADMIN')")
     @PostMapping("/{id}/convert-to-customer")
     public OpportunityConvertToCustomerResponse convertToCustomer(@PathVariable String id) {
-        return conversionService.convertToCustomer(id);
+    opportunityAccessService.getAuthorizedOpportunity(id);
+
+    return conversionService.convertToCustomer(id);
     }
 
 }

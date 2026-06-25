@@ -13,6 +13,7 @@ public interface LeadInboxRepository extends JpaRepository<LeadInbox, String> {
     Optional<LeadInbox> findFirstByPhoneOrderByReceivedAtDesc(String phone);
 
     List<LeadInbox> findByPhoneOrderByReceivedAtDesc(String phone);
+    List<LeadInbox> findByAssignedSellerIdOrderByReceivedAtDesc(String assignedSellerId);
 
     @Query(value = """
             SELECT *

@@ -538,7 +538,22 @@ private void addAttachmentsSection(
 
         cell.addElement(new Paragraph(title, labelFont));
 
-        if (attachment.getAttachmentUrl() != null && !attachment.getAttachmentUrl().isBlank()) {
+        boolean isImage =
+                "PRODUCT_IMAGE".equalsIgnoreCase(attachment.getAttachmentType())
+                || "SUPPLIER_IMAGE".equalsIgnoreCase(attachment.getAttachmentType());
+
+        if (isImage && attachment.getAttachmentUrl() != null && !attachment.getAttachmentUrl().isBlank()) {
+            try {
+                String relativePath = attachment.getAttachmentUrl().replaceFirst("^/uploads/", "uploads/");
+                Image image = Image.getInstance(relativePath);
+                image.scaleToFit(140, 140);
+                image.setSpacingBefore(6);
+                image.setSpacingAfter(6);
+                cell.addElement(image);
+            } catch (Exception ex) {
+                cell.addElement(new Paragraph("Imagen no disponible: " + attachment.getAttachmentUrl(), textFont));
+            }
+        } else if (attachment.getAttachmentUrl() != null && !attachment.getAttachmentUrl().isBlank()) {
             cell.addElement(new Paragraph(attachment.getAttachmentUrl(), textFont));
         }
 

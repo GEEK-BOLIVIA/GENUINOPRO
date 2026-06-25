@@ -43,6 +43,7 @@ import com.genuino.crm.opportunity.infra.OpportunityRepository;
 
 import com.genuino.crm.task.CommercialTaskService;
 import java.time.OffsetDateTime;
+import com.genuino.crm.quoting.common.service.ProformaAccessService;
 
 @Service
 public class TypedLclProformaService {
@@ -58,6 +59,8 @@ public class TypedLclProformaService {
 
     private final OpportunityRepository opportunityRepository;
     private final CommercialTaskService commercialTaskService;
+
+    private final ProformaAccessService proformaAccessService;
 
 
     private void validateApprovalRole(BigDecimal total, String actorRole, String type) {
@@ -101,7 +104,8 @@ public class TypedLclProformaService {
             ApprovalPolicyRepository approvalPolicyRepository,
             LclOperationalCalculationService lclOperationalCalculationService,
             OpportunityRepository opportunityRepository,
-            CommercialTaskService commercialTaskService
+            CommercialTaskService commercialTaskService,
+            ProformaAccessService proformaAccessService
     ) {
         this.typedProformaRepository = typedProformaRepository;
         this.typedProformaLclRepository = typedProformaLclRepository;
@@ -112,6 +116,7 @@ public class TypedLclProformaService {
         this.lclOperationalCalculationService = lclOperationalCalculationService;
         this.opportunityRepository = opportunityRepository;
         this.commercialTaskService = commercialTaskService;
+        this.proformaAccessService = proformaAccessService;
     }
 
     @Transactional
@@ -342,8 +347,7 @@ public class TypedLclProformaService {
 
     @Transactional(readOnly = true)
     public TypedLclProformaDetailResponse getById(UUID id) {
-        TypedProforma proforma = typedProformaRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("No existe la proforma tipificada con id " + id));
+        TypedProforma proforma = proformaAccessService.getAuthorizedProforma(id);
 
         TypedProformaLcl lcl = typedProformaLclRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("No existe el detalle LCL para la proforma " + id));
@@ -649,9 +653,17 @@ public class TypedLclProformaService {
     }
     @Transactional(readOnly = true)
     public List<TypedLclProformaResponse> findAll() {
-        return typedProformaRepository
-                .findByTypeOrderByCreatedAtDesc(TypedProformaType.LCL)
-                .stream()
+            return typedProformaRepository
+                    .findByTypeOrderByCreatedAtDesc(TypedProformaType.LCL)
+                    .stream()
+                    .filter(proforma -> {
+                        try {
+                            proformaAccessService.getAuthorizedProforma(proforma.getId());
+                            return true;
+                        } catch (Exception ex) {
+                            return false;
+                        }
+                    })
                 .map(proforma -> {
                     TypedProformaLcl lcl = typedProformaLclRepository
                             .findById(proforma.getId())
@@ -720,6 +732,14 @@ public class TypedLclProformaService {
         proforma.setUpdatedAt(LocalDateTime.now());
 
         typedProformaRepository.save(proforma);
+
+        if (proforma.getOpportunityId() != null) {
+            opportunityRepository.findById(proforma.getOpportunityId())
+                    .ifPresent(opportunity -> {
+                        opportunity.stage = "CLIENTE";
+                        opportunityRepository.save(opportunity);
+                    });
+        }
 
         AuditEvent audit = new AuditEvent();
         audit.auditId = UUID.randomUUID();

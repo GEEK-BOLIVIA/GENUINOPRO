@@ -26,6 +26,9 @@ import com.genuino.crm.quoting.lcl.service.LclOperationalCalculationService;
 
 import com.genuino.crm.quoting.lcl.service.TypedLclProformaService;
 
+import com.genuino.crm.quoting.common.domain.ProformaAttachment;
+import com.genuino.crm.quoting.common.service.ProformaAttachmentService;
+
 @RestController
 @RequestMapping("/api/typed-proformas/lcl")
 public class TypedLclProformaController {
@@ -34,17 +37,21 @@ public class TypedLclProformaController {
     private final SecurityUserService securityUserService;
     private final TypedLclPdfService typedLclPdfService;
     private final LclOperationalCalculationService lclOperationalCalculationService;
+    private final ProformaAttachmentService attachmentService;
 
     public TypedLclProformaController(
             TypedLclProformaService typedLclProformaService,
             SecurityUserService securityUserService,
             TypedLclPdfService typedLclPdfService,
-            LclOperationalCalculationService lclOperationalCalculationService
+            LclOperationalCalculationService lclOperationalCalculationService,
+            ProformaAttachmentService attachmentService
+
     ) {
         this.typedLclProformaService = typedLclProformaService;
         this.securityUserService = securityUserService;
         this.typedLclPdfService = typedLclPdfService;
         this.lclOperationalCalculationService = lclOperationalCalculationService;
+        this.attachmentService = attachmentService;
     }
 
     @PreAuthorize("isAuthenticated()")
@@ -136,7 +143,11 @@ public class TypedLclProformaController {
     @GetMapping("/{id}/pdf")
     public ResponseEntity<byte[]> downloadPdf(@PathVariable UUID id) {
         TypedLclProformaDetailResponse detail = typedLclProformaService.getById(id);
-        byte[] pdf = typedLclPdfService.generate(detail);
+
+        List<ProformaAttachment> attachments =
+                attachmentService.findByProforma(id);
+
+        byte[] pdf = typedLclPdfService.generate(detail, attachments);
 
         String filename = "proforma-lcl-" + id + ".pdf";
 
