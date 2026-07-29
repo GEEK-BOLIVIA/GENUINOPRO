@@ -20,16 +20,45 @@ public class OpportunityAccessService {
     }
 
     public Opportunity getAuthorizedOpportunity(String id) {
-
         Opportunity opportunity = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Oportunidad no encontrada."));
+                .orElseThrow(() ->
+                        new RuntimeException("Oportunidad no encontrada.")
+                );
 
-        if (dataScopeService.onlyMine()
-                && !dataScopeService.currentSeller().equals(opportunity.ownerUserId)) {
+        String currentSeller = normalize(dataScopeService.currentSeller());
+        String ownerUserId = normalize(opportunity.ownerUserId);
 
-            throw new RuntimeException("No tiene permisos para acceder a esta oportunidad.");
+        System.out.println("================================");
+        System.out.println("USER LOGIN : " + currentSeller);
+        System.out.println("OWNER USER : " + ownerUserId);
+        System.out.println("OPPORTUNITY: " + opportunity.id);
+        System.out.println("================================");
+
+        if (
+            dataScopeService.onlyMine()
+            && (
+                currentSeller == null
+                || ownerUserId == null
+                || !currentSeller.equalsIgnoreCase(ownerUserId)
+            )
+        ) {
+            throw new RuntimeException(
+                    "No tiene permisos para acceder a esta oportunidad."
+            );
         }
 
         return opportunity;
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String normalized = value.trim();
+
+        return normalized.isEmpty()
+                ? null
+                : normalized;
     }
 }

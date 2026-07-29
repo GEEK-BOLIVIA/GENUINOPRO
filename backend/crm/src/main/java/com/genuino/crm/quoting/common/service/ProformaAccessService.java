@@ -22,13 +22,27 @@ public class ProformaAccessService {
     }
 
     public TypedProforma getAuthorizedProforma(UUID id) {
-
         TypedProforma proforma = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Proforma no encontrada"));
+                .orElseThrow(() ->
+                        new RuntimeException("Proforma no encontrada.")
+                );
 
-        opportunityAccessService.getAuthorizedOpportunity(
-                proforma.getOpportunityId()
-        );
+        String opportunityId = proforma.getOpportunityId();
+
+        if (opportunityId == null || opportunityId.isBlank()) {
+            throw new RuntimeException(
+                    "La proforma no tiene una oportunidad asociada."
+            );
+        }
+
+        if (!opportunityId.startsWith("opp_")) {
+            throw new RuntimeException(
+                    "La proforma tiene una referencia de oportunidad inválida: "
+                            + opportunityId
+            );
+        }
+
+        opportunityAccessService.getAuthorizedOpportunity(opportunityId);
 
         return proforma;
     }

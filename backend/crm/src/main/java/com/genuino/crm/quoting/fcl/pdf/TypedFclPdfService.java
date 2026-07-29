@@ -13,6 +13,9 @@ import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 
+import com.genuino.crm.customerprofile.ProformaCustomerSnapshotService;
+import com.genuino.crm.quoting.common.pdf.CustomerPdfSection;
+
 @Service
 public class TypedFclPdfService {
 
@@ -21,6 +24,13 @@ public class TypedFclPdfService {
     private static final Color LIGHT = new Color(248, 250, 252);
     private static final Color YELLOW = new Color(253, 224, 71);
     private static final Color BORDER = new Color(226, 232, 240);
+    private final ProformaCustomerSnapshotService customerSnapshotService;
+
+    public TypedFclPdfService(
+            ProformaCustomerSnapshotService customerSnapshotService
+    ) {
+        this.customerSnapshotService = customerSnapshotService;
+    }
 
     public byte[] generate(
             TypedFclProforma data,
@@ -43,16 +53,37 @@ public class TypedFclPdfService {
             addHeader(document, data, brandFont, orangeFont, titleFont, smallFont);
             document.add(spacer(10));
 
-            PdfPTable client = new PdfPTable(4);
+            PdfPTable client = new PdfPTable(2);
             client.setWidthPercentage(100);
-            client.setWidths(new float[]{1f, 1f, 1f, 1f});
-            client.addCell(infoBox("Cliente", data.getCustomerName(), labelFont, textFont));
-            client.addCell(infoBox("Teléfono", data.getCustomerPhone(), labelFont, textFont));
+            client.setWidths(new float[]{1f, 1f});
+
             client.addCell(infoBox("Asesor", data.getSellerName(), labelFont, textFont));
             client.addCell(infoBox("Destino", data.getDestinationCity(), labelFont, textFont));
             document.add(client);
 
             document.add(spacer(10));
+
+            customerSnapshotService
+                    .findByProformaId(data.getId())
+                    .ifPresent(snapshot -> {
+                        try {
+                            CustomerPdfSection.add(
+                                    document,
+                                    snapshot,
+                                    whiteFont,
+                                    labelFont,
+                                    textFont
+                            );
+
+                            document.add(spacer(10));
+
+                        } catch (DocumentException exception) {
+                            throw new RuntimeException(
+                                    "No se pudo agregar los datos del cliente al PDF FCL.",
+                                    exception
+                            );
+                        }
+                    });
 
             PdfPTable operation = new PdfPTable(4);
             operation.setWidthPercentage(100);
@@ -64,8 +95,20 @@ public class TypedFclPdfService {
             operation.addCell(infoBox("Contenedor", data.getContainerType(), labelFont, textFont));
             operation.addCell(infoBox("Cantidad", data.getContainerCount(), labelFont, textFont));
             operation.addCell(infoBox("Tipo cambio", data.getExchangeRateUsed(), labelFont, textFont));
-            operation.addCell(infoBox("Método pago", data.getPaymentMethod(), labelFont, textFont));
             
+            operation.addCell(infoBox(
+                    "T/C impuestos",
+                    data.getTaxExchangeRate(),
+                    labelFont,
+                    textFont
+            ));
+
+            operation.addCell(infoBox(
+                    "Versión reglas",
+                    data.getCalculationRuleVersion(),
+                    labelFont,
+                    textFont
+            ));
 
             operation.addCell(infoBox(
                     "Peso total TN",
@@ -102,7 +145,7 @@ public class TypedFclPdfService {
                     textFont
             ));
 
-            operation.addCell(infoBox("Método pago", data.getPaymentMethod(), labelFont, textFont));
+           
 
             document.add(operation);
 
@@ -183,7 +226,21 @@ public class TypedFclPdfService {
         table.addCell(valueCell("Transporte marítimo", textFont));
         table.addCell(valueCell("USD " + format(data.getMaritimeFreightUsd()), labelFont, Element.ALIGN_RIGHT));
 
-        PdfPCell totalLabel = valueCell("TOTAL INICIAL", labelFont, Element.ALIGN_RIGHT);
+        table.addCell(valueCell(
+                "Liberación de contenedor",
+                textFont
+        ));
+
+        table.addCell(valueCell(
+                "USD " + format(
+                        data.getContainerReleaseUsd()
+                ),
+                labelFont,
+                Element.ALIGN_RIGHT
+        ));
+
+
+        PdfPCell totalLabel = valueCell("TOTAL DE COMPONENTES EN DÓLARES", labelFont, Element.ALIGN_RIGHT);
         totalLabel.setBackgroundColor(YELLOW);
         table.addCell(totalLabel);
 
@@ -209,6 +266,13 @@ public class TypedFclPdfService {
         table.addCell(headerCell("Total", whiteFont));
 
         addRow(table, "Transporte terrestre", data.getInlandFreightBob(), textFont, labelFont);
+        addRow(
+                table,
+                "Otros gastos",
+                data.getMiscellaneousExpensesBob(),
+                textFont,
+                labelFont
+        );
         addRow(table, "Impuestos a la Aduana Nacional", data.getCustomsTaxesBob(), textFont, labelFont);
         addRow(table, "Gastos despacho, ALBO, DAM, etc.", data.getAlboBob(), textFont, labelFont);
         addRow(table, "Comisión agente despachante", data.getDispatchAgentCommissionBob(), textFont, labelFont);
@@ -218,24 +282,96 @@ public class TypedFclPdfService {
         document.add(table);
     }
 
-    private void addTotal(Document document, TypedFclProforma data, Font whiteFont, Font labelFont) throws DocumentException {
+   private void addTotal(
+            Document document,
+            TypedFclProforma data,
+            Font whiteFont,
+            Font labelFont
+    ) throws DocumentException {
+
+        BigDecimal boliviaOperationCost =
+                safeMoney(
+                        data.getTotalOperationBob() != null
+                                ? data.getTotalOperationBob()
+                                : data.getTotalBob()
+                );
+
+        BigDecimal commercialExchangeRate =
+                safeMoney(
+                        data.getExchangeRateUsed() != null
+                                ? data.getExchangeRateUsed()
+                                : data.getExchangeRate()
+                );
+
+        BigDecimal usdComponents =
+                safeMoney(data.getSubtotalUsd());
+
+        BigDecimal totalInvestmentBob =
+                usdComponents
+                        .multiply(commercialExchangeRate)
+                        .add(boliviaOperationCost)
+                        .setScale(2, RoundingMode.HALF_UP);
+
         PdfPTable table = new PdfPTable(2);
         table.setWidthPercentage(100);
         table.setWidths(new float[]{3f, 1.5f});
 
-        PdfPCell label = new PdfPCell(new Phrase("EN BOLIVIANOS", whiteFont));
-        label.setBackgroundColor(ORANGE);
-        label.setPadding(10);
-        table.addCell(label);
+        PdfPCell boliviaLabel = new PdfPCell(
+                new Phrase(
+                        "COSTOS DE OPERACIÓN EN BOLIVIA",
+                        whiteFont
+                )
+        );
+        boliviaLabel.setBackgroundColor(ORANGE);
+        boliviaLabel.setPadding(10);
+        table.addCell(boliviaLabel);
 
-        PdfPCell value = new PdfPCell(new Phrase("Bs " + format(data.getTotalOperationBob() != null ? data.getTotalOperationBob() : data.getTotalBob()), labelFont));
-        value.setBackgroundColor(YELLOW);
-        value.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        value.setPadding(10);
-        table.addCell(value);
+        PdfPCell boliviaValue = new PdfPCell(
+                new Phrase(
+                        "Bs " + format(boliviaOperationCost),
+                        labelFont
+                )
+        );
+        boliviaValue.setBackgroundColor(YELLOW);
+        boliviaValue.setHorizontalAlignment(
+                Element.ALIGN_RIGHT
+        );
+        boliviaValue.setPadding(10);
+        table.addCell(boliviaValue);
+
+        Font totalFont = new Font(
+                Font.HELVETICA,
+                12,
+                Font.BOLD,
+                NAVY
+        );
+
+        PdfPCell totalLabel = new PdfPCell(
+                new Phrase(
+                        "INVERSIÓN REFERENCIAL TOTAL",
+                        whiteFont
+                )
+        );
+        totalLabel.setBackgroundColor(NAVY);
+        totalLabel.setPadding(12);
+        table.addCell(totalLabel);
+
+        PdfPCell totalValue = new PdfPCell(
+                new Phrase(
+                        "Bs " + format(totalInvestmentBob),
+                        totalFont
+                )
+        );
+        totalValue.setBackgroundColor(YELLOW);
+        totalValue.setHorizontalAlignment(
+                Element.ALIGN_RIGHT
+        );
+        totalValue.setPadding(12);
+        table.addCell(totalValue);
 
         document.add(table);
     }
+
 
     private void addRow(PdfPTable table, String label, BigDecimal value, Font textFont, Font labelFont) {
         table.addCell(valueCell(label, textFont));
@@ -399,39 +535,186 @@ private void addPaymentConditionsPage(
     important.setSpacingAfter(12);
     document.add(important);
 
-    BigDecimal initialOrderBob = safeMoney(data.getTotalUsdToStartOrder())
-            .multiply(safeMoney(data.getExchangeRateUsed()))
-            .setScale(2, RoundingMode.HALF_UP);
+    BigDecimal commercialExchangeRate =
+            safeMoney(
+                    data.getExchangeRateUsed() != null
+                            ? data.getExchangeRateUsed()
+                            : data.getExchangeRate()
+            );
 
-    BigDecimal totalInvestment = initialOrderBob
-            .add(safeMoney(data.getTotalOperationBob()))
-            .setScale(2, RoundingMode.HALF_UP);
+    BigDecimal usdComponentsBob =
+            safeMoney(data.getSubtotalUsd())
+                    .multiply(commercialExchangeRate)
+                    .setScale(2, RoundingMode.HALF_UP);
+
+    BigDecimal boliviaOperationCost =
+            safeMoney(
+                    data.getTotalOperationBob() != null
+                            ? data.getTotalOperationBob()
+                            : data.getTotalBob()
+            );
+
+    BigDecimal totalInvestment =
+            usdComponentsBob
+                    .add(boliviaOperationCost)
+                    .setScale(2, RoundingMode.HALF_UP);
+
+    BigDecimal fobUsd =
+            safeMoney(data.getFobUsd());
+
+    BigDecimal bankCommissionUsd =
+            safeMoney(data.getBankTransferCommissionUsd());
+
+    int payments =
+            data.getFobPaymentCount() == null
+                    ? 1
+                    : Math.max(
+                            1,
+                            data.getFobPaymentCount()
+                    );
+
+    BigDecimal firstFobInstallment =
+            fobUsd.divide(
+                    BigDecimal.valueOf(payments),
+                    2,
+                    RoundingMode.HALF_UP
+            );
+
+    BigDecimal initialPaymentUsd =
+            firstFobInstallment
+                    .add(bankCommissionUsd)
+                    .setScale(
+                            2,
+                            RoundingMode.HALF_UP
+                    );
 
     PdfPTable start = new PdfPTable(2);
     start.setWidthPercentage(100);
     start.setWidths(new float[]{4f, 1.5f});
 
-    start.addCell(headerCell("Inicio de pedido", whiteFont));
-    start.addCell(headerCell("Total", whiteFont));
+    start.addCell(
+            headerCell(
+                    "Pago al confirmar el pedido",
+                    whiteFont
+            )
+    );
 
-    start.addCell(valueCell("Valor FOB mercadería", textFont));
-    start.addCell(valueCell("USD " + format(data.getFobUsd()), labelFont, Element.ALIGN_RIGHT));
+    start.addCell(
+            headerCell(
+                    "Total",
+                    whiteFont
+            )
+    );
 
-    start.addCell(valueCell("Comisión giro bancario", textFont));
-    start.addCell(valueCell("USD " + format(data.getBankTransferCommissionUsd()), labelFont, Element.ALIGN_RIGHT));
+    start.addCell(
+            valueCell(
+                    payments > 1
+                            ? "Primera cuota FOB"
+                            : "Valor FOB mercadería",
+                    textFont
+            )
+    );
 
-    start.addCell(valueCell(
-            "TOTAL para iniciar pedido en dólares",
-            labelFont
-    ));
+    start.addCell(
+            valueCell(
+                    "USD " + format(
+                            payments > 1
+                                    ? firstFobInstallment
+                                    : fobUsd
+                    ),
+                    labelFont,
+                    Element.ALIGN_RIGHT
+            )
+    );
 
-    start.addCell(valueCell(
-            "USD " + format(data.getSubtotalUsd()),
+    start.addCell(
+            valueCell(
+                    "Comisión giro bancario",
+                    textFont
+            )
+    );
+
+    start.addCell(
+            valueCell(
+                    "USD " + format(
+                            bankCommissionUsd
+                    ),
+                    labelFont,
+                    Element.ALIGN_RIGHT
+            )
+    );
+
+    PdfPCell initialLabel = valueCell(
+            "TOTAL INICIAL",
             labelFont,
             Element.ALIGN_RIGHT
-    ));
+    );
+
+    initialLabel.setBackgroundColor(YELLOW);
+    start.addCell(initialLabel);
+
+    PdfPCell initialValue = valueCell(
+            "USD " + format(
+                    initialPaymentUsd
+            ),
+            labelFont,
+            Element.ALIGN_RIGHT
+    );
+
+    initialValue.setBackgroundColor(YELLOW);
+    start.addCell(initialValue);
+
     document.add(start);
     document.add(spacer(10));
+
+if (payments > 1) {
+    BigDecimal remainingFobUsd =
+            fobUsd.subtract(
+                    firstFobInstallment
+            );
+
+    PdfPTable beforeShipment =
+            new PdfPTable(2);
+
+    beforeShipment.setWidthPercentage(100);
+    beforeShipment.setWidths(
+            new float[]{4f, 1.5f}
+    );
+
+    beforeShipment.addCell(
+            headerCell(
+                    "Antes del embarque",
+                    whiteFont
+            )
+    );
+
+    beforeShipment.addCell(
+            headerCell(
+                    "Total",
+                    whiteFont
+            )
+    );
+
+    beforeShipment.addCell(
+            valueCell(
+                    "Saldo pendiente FOB",
+                    textFont
+            )
+    );
+
+    beforeShipment.addCell(
+            valueCell(
+                    "USD " + format(
+                            remainingFobUsd
+                    ),
+                    labelFont,
+                    Element.ALIGN_RIGHT
+            )
+    );
+
+    document.add(beforeShipment);
+    document.add(spacer(10));
+}
 
     PdfPTable investment = new PdfPTable(2);
     investment.setWidthPercentage(100);
@@ -444,13 +727,44 @@ private void addPaymentConditionsPage(
     title.setPadding(8);
     investment.addCell(title);
 
-    investment.addCell(valueCell("Pago inicial equivalente en Bs", textFont));
-    investment.addCell(valueCell("Bs " + format(initialOrderBob), labelFont, Element.ALIGN_RIGHT));
+    investment.addCell(
+            valueCell(
+                    "Componentes en dólares convertidos a Bs",
+                    textFont
+            )
+    );
 
-    investment.addCell(valueCell("Operación Bolivia", textFont));
-    investment.addCell(valueCell("Bs " + format(safeMoney(data.getTotalOperationBob())), labelFont, Element.ALIGN_RIGHT));
+    investment.addCell(
+            valueCell(
+                    "Bs " + format(usdComponentsBob),
+                    labelFont,
+                    Element.ALIGN_RIGHT
+            )
+    );
 
-    PdfPCell totalLabel = new PdfPCell(new Phrase("TOTAL DE LA OPERACIÓN", whiteFont));
+    investment.addCell(
+            valueCell(
+                    "Costos de operación en Bolivia",
+                    textFont
+            )
+    );
+
+    investment.addCell(
+            valueCell(
+                    "Bs " + format(
+                            boliviaOperationCost
+                    ),
+                    labelFont,
+                    Element.ALIGN_RIGHT
+            )
+    );
+
+    PdfPCell totalLabel = new PdfPCell(
+            new Phrase(
+                    "INVERSIÓN REFERENCIAL TOTAL",
+                    whiteFont
+            )
+    );
     totalLabel.setBackgroundColor(ORANGE);
     totalLabel.setPadding(12);
     investment.addCell(totalLabel);
@@ -468,34 +782,145 @@ private void addPaymentConditionsPage(
     document.add(investment);
     document.add(spacer(10));
 
-    addFobInstallments(document, data, labelFont, textFont);
-    document.add(spacer(10));
+PdfPTable later = new PdfPTable(2);
+later.setWidthPercentage(100);
+later.setWidths(new float[]{4f, 1.5f});
 
-    PdfPTable later = new PdfPTable(2);
-    later.setWidthPercentage(100);
-    later.setWidths(new float[]{4f, 1.5f});
+later.addCell(
+        headerCell(
+                "Pagos posteriores",
+                whiteFont
+        )
+);
 
-    later.addCell(headerCell("Pagos posteriores", whiteFont));
-    later.addCell(headerCell("Total", whiteFont));
+later.addCell(
+        headerCell(
+                "Total",
+                whiteFont
+        )
+);
 
-    later.addCell(valueCell("Transporte marítimo - pagar 5 días antes de llegada a puerto destino", textFont));
-    later.addCell(valueCell("USD " + format(data.getMaritimeFreightUsd()), labelFont, Element.ALIGN_RIGHT));
+later.addCell(
+        valueCell(
+                "Transporte marítimo - pagar 5 días antes de la llegada al puerto destino",
+                textFont
+        )
+);
 
-    later.addCell(valueCell("Transporte terrestre - pagar en Bolivia, variable según disposición de unidades", textFont));
-    later.addCell(valueCell("Bs " + format(data.getInlandFreightBob()), labelFont, Element.ALIGN_RIGHT));
+later.addCell(
+        valueCell(
+                "USD " + format(
+                        data.getMaritimeFreightUsd()
+                ),
+                labelFont,
+                Element.ALIGN_RIGHT
+        )
+);
 
-    later.addCell(valueCell("Impuestos a la Aduana Nacional - pagar cuando llegue a Aduana", textFont));
-    later.addCell(valueCell("Bs " + format(data.getCustomsTaxesBob()), labelFont, Element.ALIGN_RIGHT));
+later.addCell(
+        valueCell(
+                "Liberación de contenedor - pagar según instrucción operativa",
+                textFont
+        )
+);
 
-    later.addCell(valueCell("Comisión agencia despachante de aduana", textFont));
-    later.addCell(valueCell("Bs " + format(data.getDispatchAgentCommissionBob()), labelFont, Element.ALIGN_RIGHT));
+later.addCell(
+        valueCell(
+                "USD " + format(
+                        data.getContainerReleaseUsd()
+                ),
+                labelFont,
+                Element.ALIGN_RIGHT
+        )
+);
 
-    later.addCell(valueCell("Comisión Genuino Importaciones", textFont));
-    later.addCell(valueCell("Bs " + format(data.getGenuinoCommissionBob()), labelFont, Element.ALIGN_RIGHT));
+later.addCell(
+        valueCell(
+                "Transporte terrestre - pagar en Bolivia, variable según disponibilidad de unidades",
+                textFont
+        )
+);
 
-    document.add(later);
+later.addCell(
+        valueCell(
+                "Bs " + format(
+                        data.getInlandFreightBob()
+                ),
+                labelFont,
+                Element.ALIGN_RIGHT
+        )
+);
 
-    document.add(spacer(12));
+later.addCell(
+        valueCell(
+                "Otros gastos operativos",
+                textFont
+        )
+);
+
+later.addCell(
+        valueCell(
+                "Bs " + format(
+                        data.getMiscellaneousExpensesBob()
+                ),
+                labelFont,
+                Element.ALIGN_RIGHT
+        )
+);
+
+later.addCell(
+        valueCell(
+                "Impuestos a la Aduana Nacional - pagar cuando la carga llegue a Aduana",
+                textFont
+        )
+);
+
+later.addCell(
+        valueCell(
+                "Bs " + format(
+                        data.getCustomsTaxesBob()
+                ),
+                labelFont,
+                Element.ALIGN_RIGHT
+        )
+);
+
+later.addCell(
+        valueCell(
+                "Comisión de la agencia despachante de aduana",
+                textFont
+        )
+);
+
+later.addCell(
+        valueCell(
+                "Bs " + format(
+                        data.getDispatchAgentCommissionBob()
+                ),
+                labelFont,
+                Element.ALIGN_RIGHT
+        )
+);
+
+later.addCell(
+        valueCell(
+                "Comisión Genuino Importaciones",
+                textFont
+        )
+);
+
+later.addCell(
+        valueCell(
+                "Bs " + format(
+                        data.getGenuinoCommissionBob()
+                ),
+                labelFont,
+                Element.ALIGN_RIGHT
+        )
+);
+
+document.add(later);
+document.add(spacer(12));
 
     Paragraph footer = new Paragraph(
             "Documento generado por Genuino CRM. Proforma sujeta a variación de tipo de cambio, aduana, transporte y disponibilidad operativa.",

@@ -13,6 +13,9 @@ import { useEffect, useMemo, useState } from 'react';
 import LeadDetailsModal from '../components/leads/LeadDetailsModal';
 import CreateLeadModal from '../components/leads/CreateLeadModal';
 import { createLead, getLeads } from '../services/leadsService';
+import {
+  saveLeadCustomerProfile,
+} from '../services/customerProfileService';
 
 const statusStyles = {
   NEW: 'bg-sky-50 text-sky-700',
@@ -66,8 +69,27 @@ export default function LeadsPage() {
   }
 
   async function handleCreateLead(payload) {
-    const created = await createLead(payload);
+    const {
+      customerProfile,
+      ...leadPayload
+    } = payload;
+
+    const created = await createLead(leadPayload);
+
+    if (!created?.id) {
+      throw new Error(
+        'El backend creó el lead, pero no devolvió un identificador válido.'
+      );
+    }
+
+    await saveLeadCustomerProfile(
+      created.id,
+      customerProfile
+    );
+
     setLeads((prev) => [created, ...prev]);
+
+    return created;
   }
 
   return (

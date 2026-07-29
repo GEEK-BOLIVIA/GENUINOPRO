@@ -45,6 +45,8 @@ import com.genuino.crm.task.CommercialTaskService;
 import java.time.OffsetDateTime;
 import com.genuino.crm.quoting.common.service.ProformaAccessService;
 
+import com.genuino.crm.customerprofile.ProformaCustomerSnapshotService;
+
 @Service
 public class TypedLclProformaService {
 
@@ -61,6 +63,8 @@ public class TypedLclProformaService {
     private final CommercialTaskService commercialTaskService;
 
     private final ProformaAccessService proformaAccessService;
+
+    private final ProformaCustomerSnapshotService customerSnapshotService;
 
 
     private void validateApprovalRole(BigDecimal total, String actorRole, String type) {
@@ -105,7 +109,8 @@ public class TypedLclProformaService {
             LclOperationalCalculationService lclOperationalCalculationService,
             OpportunityRepository opportunityRepository,
             CommercialTaskService commercialTaskService,
-            ProformaAccessService proformaAccessService
+            ProformaAccessService proformaAccessService,
+            ProformaCustomerSnapshotService customerSnapshotService
     ) {
         this.typedProformaRepository = typedProformaRepository;
         this.typedProformaLclRepository = typedProformaLclRepository;
@@ -117,6 +122,7 @@ public class TypedLclProformaService {
         this.opportunityRepository = opportunityRepository;
         this.commercialTaskService = commercialTaskService;
         this.proformaAccessService = proformaAccessService;
+        this.customerSnapshotService = customerSnapshotService;
     }
 
     @Transactional
@@ -146,6 +152,11 @@ public class TypedLclProformaService {
         proforma.setCreatedAt(LocalDateTime.now());
 
         typedProformaRepository.save(proforma);
+
+        customerSnapshotService.capture(
+                proformaId,
+                request.getOpportunityId()
+        );
 
         if (request.getOpportunityId() != null) {
 
@@ -268,6 +279,11 @@ public class TypedLclProformaService {
 
         typedProformaRepository.save(proforma);
 
+        customerSnapshotService.capture(
+                proformaId,
+                resolvedOpportunityId
+        );
+
         if (resolvedOpportunityId != null) {
             opportunityRepository
                     .findById(resolvedOpportunityId)
@@ -304,6 +320,18 @@ public class TypedLclProformaService {
         lcl.setGrossWeightKg(request.getWeightKg());
 
         lcl.setVolumeCbm(request.getCbm());
+
+        lcl.setExchangeRate(
+                calc.getExchangeRate()
+        );
+
+        lcl.setTaxExchangeRate(
+                calc.getTaxExchangeRate()
+        );
+
+        lcl.setCalculationRuleVersion(
+                "LCL_GOV_2026_07"
+        );
 
         lcl.setSubtotalSell(calc.getGrandTotalBs());
         lcl.setEstimatedProfit(calc.getGenuinoCommissionBs());
@@ -390,6 +418,19 @@ public class TypedLclProformaService {
         response.setPackageCount(lcl.getPackageCount());
         response.setGrossWeightKg(lcl.getGrossWeightKg());
         response.setVolumeCbm(lcl.getVolumeCbm());
+
+        response.setExchangeRate(
+                lcl.getExchangeRate()
+        );
+
+        response.setTaxExchangeRate(
+                lcl.getTaxExchangeRate()
+        );
+
+        response.setCalculationRuleVersion(
+                lcl.getCalculationRuleVersion()
+        );
+
         response.setCargoDescription(lcl.getCargoDescription());
 
         response.setFreightRate(lcl.getFreightRate());

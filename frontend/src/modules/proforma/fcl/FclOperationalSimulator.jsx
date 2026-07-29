@@ -28,10 +28,20 @@ const initialForm = {
   product: '',
 
   fobUsd: '',
+
+  // Tipo de cambio comercial
   exchangeRate: '6.96',
 
+  // Tipo de cambio exclusivo para impuestos
+  taxExchangeRate: '',
+
   maritimeFreightUsd: '',
+  containerReleaseUsd: '',
+
   inlandFreightBob: '',
+  miscellaneousExpensesBob: '',
+
+  calculationRuleVersion: 'FCL_GOV_2026_07',
 
   gaPercent: '10',
   ivaPercent: '14.94',
@@ -49,6 +59,16 @@ const initialForm = {
   alboBob: '',
   adaBob: '',
   commissionUsd: '',
+
+  taxExchangeRate: '',
+
+  containerReleaseUsd: '',
+
+  miscellaneousExpensesBob: '',
+
+  customerAddress: '',
+
+  calculationRuleVersion: 'FCL_GOV_2026_07',
 };
 
 export default function FclOperationalSimulator({
@@ -87,8 +107,11 @@ export default function FclOperationalSimulator({
           product: item.product || '',
           fobUsd: item.fobUsd || '',
           exchangeRate: item.exchangeRate || '6.96',
+          taxExchangeRate: item.taxExchangeRate ?? '',
           maritimeFreightUsd: item.maritimeFreightUsd || '',
+          containerReleaseUsd: item.containerReleaseUsd ?? '',
           inlandFreightBob: item.inlandFreightBob || '',
+          miscellaneousExpensesBob: item.miscellaneousExpensesBob ?? '',
           gaPercent: item.gaPercent || '10',
           ivaPercent: item.ivaPercent || '14.94',
           icePercent: item.icePercent || '0',
@@ -98,6 +121,25 @@ export default function FclOperationalSimulator({
           fobPaymentCount: item.fobPaymentCount || '2',
           customerPaysInUsd: item.customerPaysInUsd || false,
           customerPaysSupplier: item.customerPaysSupplier || false,
+
+          taxExchangeRate:
+              item.taxExchangeRate || '',
+
+          containerReleaseUsd:
+              item.containerReleaseUsd || '',
+
+          miscellaneousExpensesBob:
+              item.miscellaneousExpensesBob || '',
+
+          customerAddress:
+              item.customerAddress || '',
+
+          calculationRuleVersion:
+              item.calculationRuleVersion || 'FCL_GOV_2026_07',
+
+          calculationRuleVersion:
+              item.calculationRuleVersion ||
+              'FCL_GOV_2026_07',
         });
 
         setCalculation(item);
@@ -197,8 +239,14 @@ export default function FclOperationalSimulator({
       containerCount: Number(source.containerCount || 1),
       fobUsd: numberOrNull(source.fobUsd),
       exchangeRate: numberOrNull(source.exchangeRate),
+      taxExchangeRate: numberOrNull(source.taxExchangeRate),
       maritimeFreightUsd: numberOrNull(source.maritimeFreightUsd),
+      containerReleaseUsd: numberOrNull(source.containerReleaseUsd),
       inlandFreightBob: numberOrNull(source.inlandFreightBob),
+      miscellaneousExpensesBob:
+      numberOrNull(
+        source.miscellaneousExpensesBob
+      ),
       gaPercent: numberOrNull(source.gaPercent),
       ivaPercent: numberOrNull(source.ivaPercent),
       icePercent: numberOrNull(source.icePercent),
@@ -206,6 +254,19 @@ export default function FclOperationalSimulator({
       fobPaymentCount: Number(source.fobPaymentCount || 1),
       customerPaysInUsd: Boolean(source.customerPaysInUsd),
       customerPaysSupplier: Boolean(source.customerPaysSupplier),
+
+      taxExchangeRate:
+          numberOrNull(source.taxExchangeRate),
+
+      containerReleaseUsd:
+          numberOrNull(source.containerReleaseUsd),
+
+      miscellaneousExpensesBob:
+          numberOrNull(source.miscellaneousExpensesBob),
+
+      calculationRuleVersion:
+          source.calculationRuleVersion ||
+          'FCL_GOV_2026_07',
     };
   }
 
@@ -219,6 +280,23 @@ export default function FclOperationalSimulator({
 
       setForm((prev) => ({
         ...prev,
+
+      taxExchangeRate:
+        result.taxExchangeRate ??
+        prev.taxExchangeRate,
+
+      containerReleaseUsd:
+        result.containerReleaseUsd ??
+        prev.containerReleaseUsd,
+
+      miscellaneousExpensesBob:
+        result.miscellaneousExpensesBob ??
+        prev.miscellaneousExpensesBob,
+
+      calculationRuleVersion:
+        result.calculationRuleVersion ||
+        prev.calculationRuleVersion,
+
         originFreightUsd: result.originFreightUsd ?? '',
         maritimeFreightUsd: result.maritimeFreightUsd ?? prev.maritimeFreightUsd,
         alboBob: result.alboBob ?? '',
@@ -226,12 +304,17 @@ export default function FclOperationalSimulator({
         commissionUsd: result.commissionUsd ?? '',
         exchangeRate: result.exchangeRate ?? prev.exchangeRate,
       }));
-    } catch (error) {
-      console.error(error);
-      alert('No se pudo calcular la proforma FCL. Verifica tarifas FCL en Parámetros.');
-    } finally {
-      setCalculating(false);
-    }
+      } catch (error) {
+        console.error(
+          'Error guardando proforma FCL:',
+          error
+        );
+
+        alert(
+          error?.message ||
+            'No se pudo guardar la proforma FCL.'
+        );
+      }
   }
 
   async function handleSave() {
@@ -272,7 +355,19 @@ export default function FclOperationalSimulator({
   } finally {
     setSaving(false);
   }
+
 }
+  const fullInvestmentBob = calculation
+  ? Number(calculation.subtotalUsd || 0) *
+      Number(
+        calculation.exchangeRateUsed ||
+          calculation.exchangeRate ||
+          form.exchangeRate ||
+          0
+      ) +
+    Number(calculation.totalOperationBob || 0)
+  : 0;
+
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -338,14 +433,46 @@ export default function FclOperationalSimulator({
               <Field label="Producto" value={form.product} onChange={(v) => update('product', v)} />
               <Field type="number" label="FOB USD" value={form.fobUsd} onChange={(v) => update('fobUsd', v)} />
               <Field type="number" label="Transporte marítimo USD" value={form.maritimeFreightUsd} onChange={(v) => update('maritimeFreightUsd', v)} />
+              <Field
+                type="number"
+                label="Liberación contenedor USD"
+                value={form.containerReleaseUsd}
+                onChange={(value) =>
+                  update(
+                    'containerReleaseUsd',
+                    value
+                  )
+                }
+              />
               <Field type="number" label="Transporte terrestre Bs" value={form.inlandFreightBob} onChange={(v) => update('inlandFreightBob', v)} />
-              <Field type="number" label="Tipo de cambio" value={form.exchangeRate} onChange={(v) => update('exchangeRate', v)} />
+              <Field
+                type="number"
+                label="Otros gastos Bs"
+                value={
+                  form.miscellaneousExpensesBob
+                }
+                onChange={(value) =>
+                  update(
+                    'miscellaneousExpensesBob',
+                    value
+                  )
+                }
+              />
+              <Field type="number" label="T/C comercial" value={form.exchangeRate} onChange={(v) => update('exchangeRate', v)} />
               <Field
                 label="Peso total TN"
                 value={form.totalWeightTn}
                 onChange={(value) => update('totalWeightTn', value)}
               />
 
+              <Field
+                type="number"
+                label="T/C para impuestos"
+                value={form.taxExchangeRate}
+                onChange={(value) =>
+                  update('taxExchangeRate', value)
+                }
+              />
               <Field
                 label="Número pagos FOB"
                 type="number"
@@ -424,6 +551,12 @@ export default function FclOperationalSimulator({
             <div className="mt-6 space-y-3">
               <ResultRow label="Seguro USD" value={calculation.insuranceUsdCalculated} />
               <ResultRow label="CIF Bs" value={calculation.cifBob} />
+              <ResultRow
+                label="T/C impuestos"
+                value={
+                  calculation.taxExchangeRate
+                }
+              />
               <ResultRow label="GA Bs" value={calculation.gaBob} />
               <ResultRow label="IVA Bs" value={calculation.ivaBob} />
               <ResultRow label="ICE Bs" value={calculation.iceBob} />
@@ -434,13 +567,45 @@ export default function FclOperationalSimulator({
               <ResultRow label="Comisión Genuino Bs" value={calculation.genuinoCommissionBob} />
               <ResultRow label="Gastos extra NIT Bs" value={calculation.extraNitExpensesBob} />
               <ResultRow label="Comisión giro USD" value={calculation.bankTransferCommissionUsd} />
+              <ResultRow
+                label="Liberación contenedor USD"
+                value={
+                  calculation.containerReleaseUsd
+                }
+              />
 
+              <ResultRow
+                label="Otros gastos Bs"
+                value={
+                  calculation.miscellaneousExpensesBob
+                }
+              />
+              <div className="rounded-2xl border border-white/10 px-4 py-3">
+                <p className="text-xs text-slate-400">
+                  Versión de reglas
+                </p>
+
+                <p className="mt-1 text-sm font-black text-white">
+                  {calculation.calculationRuleVersion ||
+                    form.calculationRuleVersion}
+                </p>
+              </div>
               <div className="mt-5 rounded-2xl bg-orange-500 p-5">
                 <p className="text-xs font-black uppercase tracking-widest text-orange-100">
-                  Total operación Bs
+                  Costos operación Bolivia
                 </p>
                 <p className="mt-2 text-3xl font-black">
                   {formatNumber(calculation.totalOperationBob || calculation.totalBob)}
+                </p>
+              </div>
+
+              <div className="mt-3 rounded-2xl bg-emerald-500 p-5">
+                <p className="text-xs font-black uppercase tracking-widest text-emerald-50">
+                  Inversión referencial total
+                </p>
+
+                <p className="mt-2 text-3xl font-black text-white">
+                  Bs {formatNumber(fullInvestmentBob)}
                 </p>
               </div>
             </div>

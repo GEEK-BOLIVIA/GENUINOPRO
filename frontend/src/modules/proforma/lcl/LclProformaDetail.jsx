@@ -266,16 +266,25 @@ export default function LclProformaDetail({ id }) {
     0
   );
 
-  const convertedUsdToBs =
-    Number(data.exchangeRate || 10) * usdSubtotal;
+const commercialExchangeRate =
+  Number(data.exchangeRate ?? 10);
+
+const taxExchangeRate =
+  Number(data.taxExchangeRate ?? 8);
+
+const convertedUsdToBs =
+  commercialExchangeRate * usdSubtotal;
 
   const grandTotal =
     convertedUsdToBs + bsSubtotal;
 
-  const unitPrice =
-    Number(data.quantity || 1) > 0
-      ? grandTotal / Number(data.quantity || 1)
-      : 0;
+const quantity =
+  Number(data.packageCount || 1);
+
+const unitPrice =
+  quantity > 0
+    ? grandTotal / quantity
+    : 0;
 
             const isDraft = data?.status === 'DRAFT';
             const isReview = data?.status === 'IN_REVIEW';
@@ -431,28 +440,100 @@ export default function LclProformaDetail({ id }) {
 
         
 
-      <div className="mb-6 mt-6 grid gap-4 md:grid-cols-4">
+      <div className="mb-6 mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-2xl bg-slate-100 p-4">
-          <p className="text-xs text-slate-500">Total USD</p>
+          <p className="text-xs text-slate-500">
+            T/C comercial
+          </p>
+
           <p className="text-2xl font-bold">
-            USD {Number(data.totalUsd || 0).toLocaleString()}
+            {commercialExchangeRate.toLocaleString(
+              'es-BO',
+              {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4,
+              }
+            )}
+          </p>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Versión de reglas de cálculo
+          </p>
+
+          <p className="mt-1 font-black text-slate-900">
+            {data.calculationRuleVersion || 'Versión histórica LCL'}
           </p>
         </div>
 
         <div className="rounded-2xl bg-slate-100 p-4">
-          <p className="text-xs text-slate-500">Total Bs</p>
+          <p className="text-xs text-slate-500">
+            T/C para impuestos
+          </p>
+
           <p className="text-2xl font-bold">
-            Bs {Number(data.total || 0).toLocaleString()}
+            {taxExchangeRate.toLocaleString(
+              'es-BO',
+              {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4,
+              }
+            )}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-slate-100 p-4">
+          <p className="text-xs text-slate-500">Total USD</p>
+          <p className="text-2xl font-bold">
+            USD{' '}
+          {usdSubtotal.toLocaleString('es-BO', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+          </p>
+        </div>
+
+        <div className="rounded-2xl bg-slate-100 p-4">
+          <p className="text-xs text-slate-500">Costos de operación en Bolivia</p>
+          <p className="text-2xl font-bold">
+            Bs{' '}
+            {bsSubtotal.toLocaleString('es-BO', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
           </p>
         </div>
 
         <div className="rounded-2xl bg-emerald-100 p-4">
-          <p className="text-xs text-emerald-700">Utilidad</p>
+          <p className="text-xs text-emerald-700">
+            Inversión referencial total
+          </p>
+
           <p className="text-2xl font-bold text-emerald-700">
-            Bs {Number(data.estimatedProfit || 0).toLocaleString()}
+            Bs{' '}
+            {grandTotal.toLocaleString('es-BO', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
           </p>
         </div>
 
+        <div className="rounded-2xl bg-blue-100 p-4">
+          <p className="text-xs text-blue-700">
+            Comisión Genuino
+          </p>
+
+          <p className="text-2xl font-bold text-blue-700">
+            Bs{' '}
+            {Number(data.estimatedProfit || 0).toLocaleString(
+              'es-BO',
+              {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }
+            )}
+          </p>
+        </div>
         <div className="rounded-2xl bg-orange-100 p-4">
           <p className="text-xs text-orange-700">Estado</p>
           <p className="text-xl font-bold text-orange-700">

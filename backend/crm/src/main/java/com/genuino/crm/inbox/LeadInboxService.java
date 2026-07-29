@@ -15,6 +15,8 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.genuino.crm.security.SecurityUserService;
+
 @Service
 public class LeadInboxService {
 
@@ -24,6 +26,7 @@ public class LeadInboxService {
     private final LeadAssignmentService leadAssignmentService;
     private final OpportunityService opportunityService;
     private final CommercialTaskService commercialTaskService;
+    private final SecurityUserService securityUserService;
 
     public LeadInboxService(
             LeadInboxRepository repo,
@@ -31,7 +34,8 @@ public class LeadInboxService {
             ObjectMapper objectMapper,
             LeadAssignmentService leadAssignmentService,
             OpportunityService opportunityService,
-            CommercialTaskService commercialTaskService
+            CommercialTaskService commercialTaskService,
+            SecurityUserService securityUserService
     )
     {
         this.repo = repo;
@@ -40,6 +44,7 @@ public class LeadInboxService {
         this.leadAssignmentService = leadAssignmentService;
         this.opportunityService = opportunityService;
         this.commercialTaskService = commercialTaskService;
+        this.securityUserService = securityUserService;
     }
 
     @Transactional
@@ -131,13 +136,27 @@ public LeadInbox createManualLead(
     lead.receivedAt = Instant.now();
     lead.createdAt = Instant.now();
 
+    String currentUser = securityUserService.getCurrentUser();
+    String currentRole = securityUserService.getHighestRole();
+
     if (assignedSellerId != null && !assignedSellerId.isBlank()) {
+
         lead.assignedSellerId = assignedSellerId;
         lead.assignmentRule = "MANUAL";
-    } else {
+
+    } else if ("ADMIN".equals(currentRole)
+            || "OWNER".equals(currentRole)
+            || "GERENCIA".equals(currentRole)) {
+
         var assignment = leadAssignmentService.assignRandomSeller();
+
         lead.assignedSellerId = assignment.sellerId();
         lead.assignmentRule = assignment.rule();
+
+    } else {
+
+        lead.assignedSellerId = currentUser;
+        lead.assignmentRule = "SELF";
     }
 
     LeadInbox saved = repo.save(lead);

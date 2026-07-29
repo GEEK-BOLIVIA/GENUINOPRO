@@ -18,6 +18,10 @@ public class TypedFclProforma {
 
     private String customerName;
     private String customerPhone;
+
+    @Column(name = "customer_address")
+    private String customerAddress;
+
     private String sellerName;
 
     private String originCity;
@@ -36,8 +40,15 @@ public class TypedFclProforma {
     private BigDecimal exchangeRate;
     private BigDecimal exchangeRateUsed;
 
+    @Column(name = "tax_exchange_rate")
+    private BigDecimal taxExchangeRate;
+
     private BigDecimal originFreightUsd;
     private BigDecimal maritimeFreightUsd;
+
+    @Column(name = "container_release_usd")
+    private BigDecimal containerReleaseUsd;
+
     private BigDecimal inlandFreightBob;
 
     private BigDecimal insuranceUsd;
@@ -63,6 +74,9 @@ public class TypedFclProforma {
     private Boolean customerPaysSupplier;
     private BigDecimal extraNitExpensesBob;
 
+    @Column(name = "miscellaneous_expenses_bob")
+    private BigDecimal miscellaneousExpensesBob;
+
     private BigDecimal alboBob;
     private BigDecimal adaBob;
     private BigDecimal commissionUsd;
@@ -74,6 +88,9 @@ public class TypedFclProforma {
     private BigDecimal totalUsdToStartOrder;
     private BigDecimal totalBob;
     private BigDecimal totalOperationBob;
+
+    @Column(name = "calculation_rule_version")
+    private String calculationRuleVersion;
 
     private String currency;
     private String status;
@@ -148,6 +165,26 @@ public class TypedFclProforma {
     public String getCurrency() { return currency; }
     public String getStatus() { return status; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+
+    public String getCustomerAddress() {
+        return customerAddress;
+    }
+
+    public BigDecimal getTaxExchangeRate() {
+        return taxExchangeRate;
+    }
+
+    public BigDecimal getContainerReleaseUsd() {
+        return containerReleaseUsd;
+    }
+
+    public BigDecimal getMiscellaneousExpensesBob() {
+        return miscellaneousExpensesBob;
+    }
+
+    public String getCalculationRuleVersion() {
+        return calculationRuleVersion;
+    }
     
     public void setId(UUID id) { 
         this.id = id; 
@@ -216,4 +253,28 @@ public class TypedFclProforma {
     public void setCurrency(String currency) { this.currency = currency; }
     public void setStatus(String status) { this.status = status; }
     public void setCreatedAt(LocalDateTime createdAt) {this.createdAt = createdAt;}
+
+    public void setCustomerAddress(String customerAddress) {
+        this.customerAddress = customerAddress;
+    }
+
+    public void setTaxExchangeRate(BigDecimal taxExchangeRate) {
+        this.taxExchangeRate = taxExchangeRate;
+    }
+
+    public void setContainerReleaseUsd(BigDecimal containerReleaseUsd) {
+        this.containerReleaseUsd = containerReleaseUsd;
+    }
+
+    public void setMiscellaneousExpensesBob(
+            BigDecimal miscellaneousExpensesBob
+    ) {
+        this.miscellaneousExpensesBob = miscellaneousExpensesBob;
+    }
+
+    public void setCalculationRuleVersion(
+            String calculationRuleVersion
+    ) {
+        this.calculationRuleVersion = calculationRuleVersion;
+    }
 }

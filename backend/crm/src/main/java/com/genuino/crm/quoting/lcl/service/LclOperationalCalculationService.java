@@ -47,7 +47,7 @@ public class LclOperationalCalculationService {
         BigDecimal customsTaxesBs = calculateCustomsTaxes(
             merchandiseValueUsd,
             maritimeTransportUsd,
-            
+            request.getTaxExchangeRate(),
             request.getGaPercentage(),
             request.getIvaPercentage(),
             request.getIceAmountBs()
@@ -117,6 +117,14 @@ public class LclOperationalCalculationService {
                 genuinoCommissionBs
         ));
 
+        response.setExchangeRate(
+                request.getExchangeRate()
+        );
+
+        response.setTaxExchangeRate(
+                request.getTaxExchangeRate()
+        );
+
         return response;
     }
 
@@ -154,24 +162,61 @@ public class LclOperationalCalculationService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal calculateMaritimeTransport(BigDecimal cbmValue, BigDecimal weightKgValue) {
-        BigDecimal cbm = money(cbmValue);
-        BigDecimal weightKg = money(weightKgValue);
+private BigDecimal calculateMaritimeTransport(
+        BigDecimal cbmValue,
+        BigDecimal weightKgValue
+) {
+    BigDecimal cbm = money(cbmValue);
+    BigDecimal weightKg = money(weightKgValue);
 
-        BigDecimal cbmRate = proformaRateService.findRatePrice("LCL", "CBM", cbm);
-        BigDecimal transportByCbm = cbm.multiply(cbmRate);
+    BigDecimal cbmRate =
+            proformaRateService.findRatePrice(
+                    "LCL",
+                    "CBM",
+                    cbm
+            );
 
-        BigDecimal tons = weightKg.divide(new BigDecimal("1000"), 3, RoundingMode.HALF_UP);
+    BigDecimal transportByCbm =
+            cbm.multiply(cbmRate);
 
-        BigDecimal tonRate = proformaRateService.findRatePrice("LCL", "TON", tons);
-        BigDecimal transportByWeight = tons.multiply(tonRate);
+    BigDecimal maximumWeightByVolumeKg =
+            cbm.multiply(
+                    new BigDecimal("750")
+            );
 
-        if (tons.compareTo(cbm) > 0) {
-            return transportByWeight.setScale(2, RoundingMode.HALF_UP);
-        }
+    if (
+        weightKg.compareTo(
+                maximumWeightByVolumeKg
+        ) > 0
+    ) {
+        BigDecimal tons =
+                weightKg.divide(
+                        new BigDecimal("1000"),
+                        4,
+                        RoundingMode.HALF_UP
+                );
 
-        return transportByCbm.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal tonRate =
+                proformaRateService.findRatePrice(
+                        "LCL",
+                        "TON",
+                        tons
+                );
+
+        return tons
+                .multiply(tonRate)
+                .setScale(
+                        2,
+                        RoundingMode.HALF_UP
+                );
     }
+
+    return transportByCbm
+            .setScale(
+                    2,
+                    RoundingMode.HALF_UP
+            );
+}
     private BigDecimal maritimeRateByCbm(BigDecimal cbm) {
         if (lte(cbm, "0.99")) return bd("250");
         if (lte(cbm, "5")) return bd("220");
@@ -184,6 +229,7 @@ public class LclOperationalCalculationService {
     private BigDecimal calculateCustomsTaxes(
             BigDecimal merchandiseValueUsd,
             BigDecimal maritimeTransportUsd,
+            BigDecimal exchangeRate,
             BigDecimal gaPercentage,
             BigDecimal ivaPercentage,
             BigDecimal iceAmountBs
@@ -203,7 +249,7 @@ public class LclOperationalCalculationService {
         BigDecimal cifBs = fob
                 .add(transportAduanaUsd)
                 .add(insuranceUsd)
-                .multiply(new BigDecimal("8"));
+                .multiply(money(exchangeRate));
 
         BigDecimal gaBs = cifBs.multiply(gaRate);
 

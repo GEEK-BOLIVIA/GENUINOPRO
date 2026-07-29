@@ -226,7 +226,19 @@ export default function PipelinePage() {
         </div>
       ) : (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div className="flex gap-5 overflow-x-auto pb-4">
+        <div
+          className="
+              flex
+              gap-5
+              overflow-x-auto
+              overflow-y-hidden
+              pb-6
+              pr-4
+              scrollbar-thin
+              scrollbar-thumb-slate-300
+              scrollbar-track-transparent
+          "
+        >
             {columns.map((column) => (
               <PipelineColumn
                 key={column.key}
@@ -270,13 +282,17 @@ function PipelineColumn({ id, title, description, tone, opportunities }) {
   return (
     <section
       ref={setNodeRef}
-      className={`min-h-[640px] w-[330px] shrink-0 rounded-[28px] border p-4 transition ${
-        isOver ? 'border-orange-300 bg-orange-50' : 'border-slate-200 bg-white'
+      className={`flex h-[calc(100vh-310px)] min-h-[620px] w-[340px] shrink-0 flex-col overflow-hidden rounded-[28px] border transition ${
+        isOver
+          ? 'border-orange-300 bg-orange-50'
+          : 'border-slate-200 bg-white'
       } shadow-sm`}
     >
-      <header className="mb-5">
+      <header className="shrink-0 border-b border-slate-200 bg-white px-4 py-4">
         <div className="flex items-center justify-between gap-3">
-          <span className={`rounded-full px-3 py-1 text-xs font-black ${tone}`}>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-black ${tone}`}
+          >
             {title}
           </span>
 
@@ -290,9 +306,12 @@ function PipelineColumn({ id, title, description, tone, opportunities }) {
         </p>
       </header>
 
-      <div className="space-y-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {opportunities.map((opportunity) => (
-          <PipelineCard key={opportunity.id} opportunity={opportunity} />
+          <PipelineCard
+            key={opportunity.id}
+            opportunity={opportunity}
+          />
         ))}
 
         {opportunities.length === 0 && (

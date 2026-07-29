@@ -27,7 +27,13 @@ const initialForm = {
   ivaPercentage: 14.94,
   miscellaneousExpensesBs: 0,
   cbm: 0,
+
+  // Tipo de cambio comercial
   exchangeRate: 10,
+
+  // Tipo de cambio para impuestos
+  taxExchangeRate: 9,
+
   supplierName: '',
   supplierPhone: '',
   iceAmountBs: 0,
@@ -109,6 +115,10 @@ export default function LclOperationalSimulator() {
 
     if (Number(form.exchangeRate || 0) <= 0) {
         return 'El tipo de cambio debe ser mayor a cero';
+    }
+
+    if (Number(form.taxExchangeRate || 0) <= 0) {
+      return 'El tipo de cambio para impuestos debe ser mayor a cero';
     }
 
     return '';
@@ -227,6 +237,7 @@ export default function LclOperationalSimulator() {
         miscellaneousExpensesBs: Number(form.miscellaneousExpensesBs || 0),
         cbm: Number(form.cbm || 0),
         exchangeRate: Number(form.exchangeRate || 0),
+        taxExchangeRate: Number(form.taxExchangeRate || 0),
         iceAmountBs: Number(form.iceAmountBs || 0),
       };
 
@@ -283,6 +294,7 @@ export default function LclOperationalSimulator() {
         miscellaneousExpensesBs: Number(form.miscellaneousExpensesBs || 0),
         cbm: Number(form.cbm || 0),
         exchangeRate: Number(form.exchangeRate || 0),
+        taxExchangeRate: Number(form.taxExchangeRate || 0),
         iceAmountBs: Number(form.iceAmountBs || 0),
         };
 
@@ -390,7 +402,23 @@ export default function LclOperationalSimulator() {
               <Field label="Envío almacén USD" type="number" value={form.warehouseShippingUsd} onChange={(v) => update('warehouseShippingUsd', v)} />
               <Field label="GA %" type="number" value={form.gaPercentage} onChange={(v) => update('gaPercentage', v)} />
               <Field label="IVA %" type="number" value={form.ivaPercentage} onChange={(v) => update('ivaPercentage', v)} />
-              <Field label="Tipo cambio" type="number" value={form.exchangeRate} onChange={(v) => update('exchangeRate', v)} />
+              <Field
+                label="T/C comercial"
+                type="number"
+                value={form.exchangeRate}
+                onChange={(value) =>
+                  update('exchangeRate', value)
+                }
+              />
+
+              <Field
+                label="T/C para impuestos"
+                type="number"
+                value={form.taxExchangeRate}
+                onChange={(value) =>
+                  update('taxExchangeRate', value)
+                }
+              />
               <Field label="ICE Bs" type="number" value={form.iceAmountBs} onChange={(v) => update('iceAmountBs', v)} />
               <Field label="Gastos varios Bs" type="number" value={form.miscellaneousExpensesBs} onChange={(v) => update('miscellaneousExpensesBs', v)} />
             </div>
@@ -409,6 +437,43 @@ export default function LclOperationalSimulator() {
             </div>
           ) : (
             <div className="mt-6 space-y-4">
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 p-4">
+                  <p className="text-xs text-slate-400">
+                    T/C comercial
+                  </p>
+
+                  <p className="mt-1 text-xl font-black">
+                    {Number(
+                      result.exchangeRate ??
+                        form.exchangeRate ??
+                        0
+                    ).toLocaleString('es-BO', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 p-4">
+                  <p className="text-xs text-slate-400">
+                    T/C para impuestos
+                  </p>
+
+                  <p className="mt-1 text-xl font-black">
+                    {Number(
+                      result.taxExchangeRate ??
+                        form.taxExchangeRate ??
+                        0
+                    ).toLocaleString('es-BO', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+              </div>
+
               <div className="rounded-2xl bg-white/5 p-4">
                 <p className="text-xs text-slate-400">Total USD</p>
                 <p className="text-3xl font-black">USD {Number(result.totalUsd || 0).toLocaleString()}</p>
@@ -420,12 +485,12 @@ export default function LclOperationalSimulator() {
               </div>
 
               <div className="rounded-2xl bg-orange-500 p-4">
-                <p className="text-xs text-orange-100">Saldo contraentrega</p>
+                <p className="text-xs text-orange-100">Costos de operación en Bolivia</p>
                 <p className="text-3xl font-black">Bs {Number(result.totalBs || 0).toLocaleString()}</p>
               </div>
 
               <div className="rounded-2xl bg-emerald-500 p-4">
-                <p className="text-xs text-emerald-100">Total general</p>
+                <p className="text-xs text-emerald-100">Inversión referencial total</p>
                 <p className="text-3xl font-black">Bs {Number(result.grandTotalBs || 0).toLocaleString()}</p>
               </div>
 
@@ -436,11 +501,11 @@ export default function LclOperationalSimulator() {
 
               <div className="rounded-2xl border border-white/10 p-4">
                 <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">
-                  Pagos
+                  Cronograma referencial de pagos
                 </p>
                 <div className="rounded-2xl border border-white/10 p-4">
                 <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">
-                    Líneas generadas
+                  Detalle de la operación
                 </p>
 
                 <button
@@ -449,33 +514,109 @@ export default function LclOperationalSimulator() {
                 disabled={!result || isSaving}
                 className="w-full rounded-2xl bg-white px-6 py-4 text-sm font-black text-slate-950 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                {isSaving ? 'Guardando...' : 'Generar proforma formal'}
+                {isSaving ? 'Guardando...' : 'Guardar proforma LCL'}
                 </button>
 
                 <div className="space-y-2">
-                    {(result.generatedLines || []).map((line) => (
-                    <div
+
+                  {(result.generatedLines || []).map((line) => {
+                    const currency =
+                      line.currency === 'BOB'
+                        ? 'Bs'
+                        : 'USD';
+
+                    return (
+                      <div
                         key={line.code}
-                        className="flex items-center justify-between gap-3 rounded-xl bg-white/5 px-3 py-2 text-sm"
-                    >
+                        className="flex items-center justify-between gap-3 rounded-xl bg-white/5 px-3 py-3 text-sm"
+                      >
                         <div>
-                        <p className="font-black text-white">{line.code}</p>
-                        <p className="text-xs text-slate-400">{line.description}</p>
+                          <p className="font-black text-white">
+                            {line.description}
+                          </p>
+
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                            {line.code}
+                          </p>
                         </div>
 
-                        <b>
-                        {line.currency === 'BOB' ? 'Bs' : 'USD'}{' '}
-                        {Number(line.amount || 0).toLocaleString()}
+                        <b className="shrink-0 text-right">
+                          {currency}{' '}
+                          {Number(
+                            line.amount || 0
+                          ).toLocaleString('es-BO', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
                         </b>
-                    </div>
-                    ))}
+                      </div>
+                    );
+                  })}
                 </div>
                 </div>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span>Pago 1</span><b>USD {result.firstPaymentUsd}</b></div>
-                  <div className="flex justify-between"><span>Pago 2</span><b>USD {result.secondPaymentUsd}</b></div>
-                  <div className="flex justify-between"><span>Pago 3</span><b>Bs {result.thirdPaymentBs}</b></div>
-                </div>
+                  <div className="grid gap-3">
+                    <div className="rounded-2xl bg-white/5 p-4">
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                        Pago inicial
+                      </p>
+
+                      <p className="mt-1 text-2xl font-black text-white">
+                        USD{' '}
+                        {Number(
+                          result.firstPaymentUsd || 0
+                        ).toLocaleString('es-BO', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-400">
+                        Mercadería, envío a almacén y comisión bancaria.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white/5 p-4">
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                        Transporte internacional
+                      </p>
+
+                      <p className="mt-1 text-2xl font-black text-white">
+                        USD{' '}
+                        {Number(
+                          result.secondPaymentUsd || 0
+                        ).toLocaleString('es-BO', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-400">
+                        Transporte marítimo y terrestre internacional.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-orange-500 p-4">
+                      <p className="text-xs font-bold uppercase tracking-widest text-orange-100">
+                        Pago en Bolivia
+                      </p>
+
+                      <p className="mt-1 text-2xl font-black text-white">
+                        Bs{' '}
+                        {Number(
+                          result.thirdPaymentBs || 0
+                        ).toLocaleString('es-BO', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+
+                      <p className="mt-1 text-xs text-orange-100">
+                        Aduana, ALBO, comisión Genuino y gastos varios.
+                      </p>
+                    </div>
+                  </div>
+                  </div>
               </div>
             </div>
           )}

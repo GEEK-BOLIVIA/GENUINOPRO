@@ -14,6 +14,9 @@ import java.util.List;
 
 import com.genuino.crm.quoting.common.domain.ProformaAttachment;
 
+import com.genuino.crm.customerprofile.ProformaCustomerSnapshotService;
+import com.genuino.crm.quoting.common.pdf.CustomerPdfSection;
+
 @Service
 public class TypedLclPdfService {
 
@@ -22,6 +25,14 @@ public class TypedLclPdfService {
     private static final Color LIGHT = new Color(248, 250, 252);
     private static final Color YELLOW = new Color(253, 224, 71);
     private static final Color BORDER = new Color(226, 232, 240);
+
+    private final ProformaCustomerSnapshotService customerSnapshotService;
+
+    public TypedLclPdfService(
+                ProformaCustomerSnapshotService customerSnapshotService
+        ) {
+            this.customerSnapshotService = customerSnapshotService;
+        }
 
     public byte[] generate(
             TypedLclProformaDetailResponse data,
@@ -44,12 +55,49 @@ public class TypedLclPdfService {
             addHeader(document, data, brandFont, orangeFont, titleFont, smallFont);
             document.add(spacer(10));
 
-            PdfPTable info = new PdfPTable(3);
-            info.setWidthPercentage(100);
-            info.setWidths(new float[]{1f, 1f, 1f});
-            info.addCell(infoBox("Cliente", data.getCustomerName(), labelFont, textFont));
-            info.addCell(infoBox("Origen", data.getOriginCity(), labelFont, textFont));
-            info.addCell(infoBox("Destino", data.getDestinationCity(), labelFont, textFont));
+            customerSnapshotService
+                    .findByProformaId(data.getId())
+                    .ifPresent(snapshot -> {
+                        try {
+                            CustomerPdfSection.add(
+                                    document,
+                                    snapshot,
+                                    whiteFont,
+                                    labelFont,
+                                    textFont
+                            );
+
+                            document.add(spacer(10));
+
+                        } catch (DocumentException exception) {
+                            throw new RuntimeException(
+                                    "No se pudo agregar los datos del cliente al PDF LCL.",
+                                    exception
+                            );
+                        }
+                    });
+
+                    PdfPTable info = new PdfPTable(2);
+                    info.setWidthPercentage(100);
+                    info.setWidths(new float[]{1f, 1f});
+
+                    info.addCell(
+                            infoBox(
+                                    "Origen",
+                                    data.getOriginCity(),
+                                    labelFont,
+                                    textFont
+                            )
+                    );
+
+                    info.addCell(
+                            infoBox(
+                                    "Destino",
+                                    data.getDestinationCity(),
+                                    labelFont,
+                                    textFont
+                            )
+                    );
             document.add(info);
             document.add(spacer(14));
 

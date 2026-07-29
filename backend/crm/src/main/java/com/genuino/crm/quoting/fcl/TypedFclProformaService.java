@@ -17,9 +17,10 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.math.RoundingMode;
 
 import com.genuino.crm.quoting.common.service.ProformaAccessService;
+
+import com.genuino.crm.customerprofile.ProformaCustomerSnapshotService;
 
 @Service
 public class TypedFclProformaService {
@@ -30,6 +31,7 @@ public class TypedFclProformaService {
     private final OpportunityRepository opportunityRepository;
     private final CommercialTaskService commercialTaskService;
     private final ProformaAccessService proformaAccessService;
+    private final ProformaCustomerSnapshotService customerSnapshotService;
 
     public TypedFclProformaService(
             TypedFclProformaRepository repository,
@@ -37,7 +39,8 @@ public class TypedFclProformaService {
             TypedProformaRepository typedProformaRepository,
             OpportunityRepository opportunityRepository,
             CommercialTaskService commercialTaskService,
-            ProformaAccessService proformaAccessService
+            ProformaAccessService proformaAccessService,
+            ProformaCustomerSnapshotService customerSnapshotService
     ) {
         this.repository = repository;
         this.rateService = rateService;
@@ -45,6 +48,7 @@ public class TypedFclProformaService {
         this.opportunityRepository = opportunityRepository;
         this.commercialTaskService = commercialTaskService;
         this.proformaAccessService = proformaAccessService;
+        this.customerSnapshotService = customerSnapshotService;
     }
 
     @Transactional(readOnly = true)
@@ -104,6 +108,11 @@ public class TypedFclProformaService {
 
         typedProformaRepository.save(parent);
 
+        customerSnapshotService.capture(
+                proformaId,
+                opportunityId
+        );
+
         TypedFclProforma saved = repository.save(request);
 
         if (saved.getCode() == null || saved.getCode().isBlank()) {
@@ -149,6 +158,23 @@ public class TypedFclProformaService {
 
         item.setExchangeRateUsed(exchangeRate);
 
+        BigDecimal taxExchangeRate =
+                safe(item.getTaxExchangeRate());
+
+        if (taxExchangeRate.compareTo(BigDecimal.ZERO) == 0) {
+            taxExchangeRate = exchangeRate;
+            item.setTaxExchangeRate(taxExchangeRate);
+        }
+
+        if (
+            item.getCalculationRuleVersion() == null
+            || item.getCalculationRuleVersion().isBlank()
+        ) {
+            item.setCalculationRuleVersion(
+                    "FCL_GOV_2026_07"
+            );
+        }
+
         BigDecimal fobUsd = safe(item.getFobUsd());
 
         if (fobUsd.compareTo(BigDecimal.ZERO) == 0) {
@@ -178,10 +204,14 @@ public class TypedFclProformaService {
         item.setInsuranceUsdCalculated(insuranceUsd);
         item.setInsuranceUsd(insuranceUsd);
 
+        BigDecimal containerReleaseUsd =
+                safe(item.getContainerReleaseUsd());
+
         BigDecimal cifBob = fobUsd
                 .add(maritimeFreightUsd)
+                .add(containerReleaseUsd)
                 .add(insuranceUsd)
-                .multiply(exchangeRate);
+                .multiply(taxExchangeRate);
 
         item.setCifBob(cifBob);
 
@@ -239,23 +269,28 @@ public class TypedFclProformaService {
 
         BigDecimal subtotalUsd = fobUsd
                 .add(bankTransferCommissionUsd)
-                .add(maritimeFreightUsd);
+                .add(maritimeFreightUsd)
+                .add(containerReleaseUsd);
 
         item.setSubtotalUsd(subtotalUsd);
         item.setSubtotalBob(subtotalUsd.multiply(exchangeRate));
 
         BigDecimal inlandFreightBob = safe(item.getInlandFreightBob());
 
+        BigDecimal miscellaneousExpensesBob =
+                safe(item.getMiscellaneousExpensesBob());
+
         BigDecimal totalOperationBob = inlandFreightBob
                 .add(customsTaxesBob)
                 .add(alboBob)
                 .add(dispatchAgentCommissionBob)
                 .add(genuinoCommissionBob)
-                .add(extraNitExpensesBob);
+                .add(extraNitExpensesBob)
+                .add(miscellaneousExpensesBob);
 
-        item.setTotalOperationBob(totalOperationBob);
-        item.setTotalBob(totalOperationBob);
-    }
+                item.setTotalOperationBob(totalOperationBob);
+                item.setTotalBob(totalOperationBob);
+            }
 
     private BigDecimal percentOrDefault(BigDecimal value, BigDecimal defaultValue) {
         return value == null ? defaultValue : value;

@@ -14,9 +14,14 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
-        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(new KeycloakRealmRoleConverter());
+        JwtAuthenticationConverter jwtAuthenticationConverter =
+                new JwtAuthenticationConverter();
 
+        jwtAuthenticationConverter.setPrincipalClaimName("preferred_username");
+
+        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(
+                new KeycloakRealmRoleConverter()
+        );
         http
             .cors(cors -> {})
             .csrf(AbstractHttpConfigurer::disable)

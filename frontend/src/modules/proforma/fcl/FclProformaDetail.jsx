@@ -143,6 +143,28 @@ async function saveDraftChanges() {
 
 const isDraft = item.status === 'DRAFT';
 
+const totalUsdComponents =
+  Number(item.subtotalUsd || 0);
+
+const commercialExchangeRate =
+  Number(
+    item.exchangeRateUsed ||
+      item.exchangeRate ||
+      0
+  );
+
+const boliviaOperationCost =
+  Number(
+    item.totalOperationBob ||
+      item.totalBob ||
+      0
+  );
+
+const totalInvestmentBob =
+  totalUsdComponents *
+    commercialExchangeRate +
+  boliviaOperationCost;
+
 const fobAmount = Number(item.fobUsd || item.merchandiseValueUsd || 0);
 const fobPayments = Math.max(1, Number(item.fobPaymentCount || 1));
 const fobInstallment = fobAmount / fobPayments;
@@ -276,6 +298,11 @@ async function handleDeleteAttachment(attachmentId) {
             <MoneyRow label="FOB USD" value={item.fobUsd || item.merchandiseValueUsd} prefix="USD" />
             <MoneyRow label="Comisión giro USD" value={item.bankTransferCommissionUsd || item.commissionUsd} prefix="USD" />
             <MoneyRow label="Transporte marítimo USD" value={item.maritimeFreightUsd || item.originFreightUsd} prefix="USD" />
+            <MoneyRow
+              label="Liberación contenedor USD"
+              value={item.containerReleaseUsd}
+              prefix="USD"
+            />
             <MoneyRow label="Total inicial USD" value={item.totalUsdToStartOrder} prefix="USD" highlight />
           </div>
         </Card>
@@ -291,6 +318,41 @@ async function handleDeleteAttachment(attachmentId) {
             <Info label="CIF Bs" value={formatMoney(item.cifBob)} />
 
             <Info label="Transporte terrestre Bs" value={item.inlandFreightBob} editable={isDraft} type="number" onChange={(v) => updateField('inlandFreightBob', v)} />
+            <Info
+              label="T/C comercial"
+              value={item.exchangeRateUsed || item.exchangeRate}
+            />
+
+            <Info
+              label="T/C para impuestos"
+              value={item.taxExchangeRate}
+            />
+
+            <Info
+              label="Liberación contenedor USD"
+              value={formatMoney(
+                item.containerReleaseUsd,
+                'USD'
+              )}
+            />
+
+            <Info
+              label="Otros gastos Bs"
+              value={item.miscellaneousExpensesBob}
+              editable={isDraft}
+              type="number"
+              onChange={(v) =>
+                updateField(
+                  'miscellaneousExpensesBob',
+                  v
+                )
+              }
+            />
+
+            <Info
+              label="Versión de reglas"
+              value={item.calculationRuleVersion}
+            />
             <Info label="GA %" value={item.gaPercent} editable={isDraft} type="number" onChange={(v) => updateField('gaPercent', v)} />
             <Info label="IVA %" value={item.ivaPercent} editable={isDraft} type="number" onChange={(v) => updateField('ivaPercent', v)} />
             <Info label="ICE %" value={item.icePercent} editable={isDraft} type="number" onChange={(v) => updateField('icePercent', v)} />
@@ -304,15 +366,27 @@ async function handleDeleteAttachment(attachmentId) {
             <Info label="Importador" value={item.importerNitType} />
         </div>
 
-        <div className="mt-6 rounded-3xl bg-orange-500 p-6 text-white">
-            <p className="text-xs font-black uppercase tracking-widest text-orange-100">
-            Total operación
-            </p>
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-3xl bg-orange-500 p-6 text-white">
+                <p className="text-xs font-black uppercase tracking-widest text-orange-100">
+                  Costos de operación en Bolivia
+                </p>
 
-            <p className="mt-2 text-4xl font-black">
-            Bs {formatNumber(item.totalOperationBob || item.totalBob)}
-            </p>
-        </div>
+                <p className="mt-2 text-3xl font-black">
+                  Bs {formatNumber(boliviaOperationCost)}
+                </p>
+              </div>
+
+              <div className="rounded-3xl bg-emerald-500 p-6 text-white">
+                <p className="text-xs font-black uppercase tracking-widest text-emerald-100">
+                  Inversión referencial total
+                </p>
+
+                <p className="mt-2 text-3xl font-black">
+                  Bs {formatNumber(totalInvestmentBob)}
+                </p>
+              </div>
+            </div>
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -395,11 +469,21 @@ async function handleDeleteAttachment(attachmentId) {
                 />
 
                 <MoneyRow
+                  label="Liberación contenedor"
+                  value={item.containerReleaseUsd}
+                  prefix="USD"
+                />
+                <MoneyRow
                   label="Transporte terrestre"
                   value={item.inlandFreightBob}
                   prefix="Bs"
                 />
 
+                <MoneyRow
+                  label="Otros gastos"
+                  value={item.miscellaneousExpensesBob}
+                  prefix="Bs"
+                />
                 <MoneyRow
                   label="Impuestos Aduana"
                   value={item.customsTaxesBob}

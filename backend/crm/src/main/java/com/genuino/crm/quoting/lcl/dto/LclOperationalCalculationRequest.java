@@ -25,6 +25,8 @@ public class LclOperationalCalculationRequest {
     private BigDecimal cbm;
     private BigDecimal exchangeRate;
 
+    private BigDecimal taxExchangeRate;
+
     private String supplierName;
     private String supplierPhone;
 
@@ -32,6 +34,15 @@ public class LclOperationalCalculationRequest {
 
     private Boolean needsHbl;
     private Boolean customerPaysUsdCash;
+
+
+    public BigDecimal getTaxExchangeRate() {
+        return taxExchangeRate;
+    }
+
+    public void setTaxExchangeRate(BigDecimal taxExchangeRate) {
+        this.taxExchangeRate = taxExchangeRate;
+    }
 
     public String getCustomerName() { return customerName; }
     public void setCustomerName(String customerName) { this.customerName = customerName; }

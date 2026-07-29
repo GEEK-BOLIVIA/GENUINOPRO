@@ -24,6 +24,11 @@ import {
 
 import { getCommercialSummary } from '../../services/commercialSummaryService';
 
+import {
+  getBoliviaCities,
+  getLeadCustomerProfile,
+  saveLeadCustomerProfile,
+} from '../../services/customerProfileService';
 
 
 const statusLabels = {
@@ -152,6 +157,11 @@ export default function LeadDetailsModal({ lead, open, onClose }) {
   const [selectedLeadId, setSelectedLeadId] = useState(null);
   const [leadSearch, setLeadSearch] = useState('');
 
+  const [customerProfile, setCustomerProfile] = useState(null);
+  const [cities, setCities] = useState([]);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+
   useEffect(() => {
     if (!open || !lead?.id) return;
 
@@ -197,6 +207,83 @@ export default function LeadDetailsModal({ lead, open, onClose }) {
 
     loadContact360();
   }, [open, lead?.id]);
+
+  useEffect(() => {
+    if (!open || !lead?.id) return;
+
+    const profileLeadId =
+      selectedLeadId ||
+      summary?.lead?.id ||
+      lead.id;
+
+    async function loadCustomerProfile() {
+      try {
+        const [profileData, citiesData] =
+          await Promise.all([
+            getLeadCustomerProfile(profileLeadId),
+            getBoliviaCities(),
+          ]);
+
+        setCustomerProfile(profileData || null);
+        setCities(
+          Array.isArray(citiesData)
+            ? citiesData
+            : []
+        );
+      } catch (error) {
+        console.error(
+          'Error cargando perfil del cliente',
+          error
+        );
+
+        setCustomerProfile(null);
+      }
+    }
+
+    loadCustomerProfile();
+  }, [
+    open,
+    lead?.id,
+    selectedLeadId,
+    summary?.lead?.id,
+  ]);
+
+async function handleSaveCustomerProfile(payload) {
+  const profileLeadId =
+    selectedLeadId ||
+    summary?.lead?.id ||
+    lead?.id;
+
+  if (!profileLeadId) {
+    alert('No se identificó el lead.');
+    return;
+  }
+
+  try {
+    setSavingProfile(true);
+
+    const saved =
+      await saveLeadCustomerProfile(
+        profileLeadId,
+        payload
+      );
+
+    setCustomerProfile(saved);
+    setEditingProfile(false);
+  } catch (error) {
+    console.error(
+      'Error guardando perfil del cliente',
+      error
+    );
+
+    alert(
+      error.message ||
+        'No se pudo guardar el perfil.'
+    );
+  } finally {
+    setSavingProfile(false);
+  }
+}
 
   if (!open || !lead) return null;
 
@@ -545,6 +632,18 @@ const selectedRequirementDate = selectedRequirement
           <InfoCard icon={<BadgeCheck size={18} />} title="Estado comercial" value={statusLabels[currentLead.status] || currentLead.status || summary?.opportunity?.stage || '-'} />
           <InfoCard icon={<MessageSquare size={18} />} title="Canal" value={currentLead.channel || '-'} />
           <InfoCard icon={<Clock3 size={18} />} title="Origen" value={currentLead.source || 'Whapify / Comercial'} />
+        </div>
+
+        <div className="mt-6">
+          <LeadCustomerProfilePanel
+            profile={customerProfile}
+            cities={cities}
+            editing={editingProfile}
+            saving={savingProfile}
+            onEdit={() => setEditingProfile(true)}
+            onCancel={() => setEditingProfile(false)}
+            onSave={handleSaveCustomerProfile}
+          />
         </div>
 
           <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -1139,5 +1238,528 @@ function EmptyMessage({ text }) {
     <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
       {text}
     </div>
+  );
+}
+
+function LeadCustomerProfilePanel({
+  profile,
+  cities,
+  editing,
+  saving,
+  onEdit,
+  onCancel,
+  onSave,
+}) {
+  const [form, setForm] = useState({
+    customerType: 'UNDEFINED',
+    fullName: '',
+    cityCode: '',
+    mobilePhone: '',
+    legalName: '',
+    taxId: '',
+    companyPhone: '',
+    addressText: '',
+    mapsUrl: '',
+    legalRepresentativeName: '',
+  });
+
+  useEffect(() => {
+    setForm({
+      customerType:
+        profile?.customerType || 'UNDEFINED',
+      fullName: profile?.fullName || '',
+      cityCode: profile?.cityCode || '',
+      mobilePhone:
+        profile?.mobilePhone || '',
+      legalName: profile?.legalName || '',
+      taxId: profile?.taxId || '',
+      companyPhone:
+        profile?.companyPhone || '',
+      addressText:
+        profile?.addressText || '',
+      mapsUrl: profile?.mapsUrl || '',
+      legalRepresentativeName:
+        profile?.legalRepresentativeName || '',
+    });
+  }, [profile, editing]);
+
+  function updateField(field, value) {
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault();
+
+    if (
+      form.customerType ===
+      'NATURAL_PERSON'
+    ) {
+      if (
+        !form.fullName.trim() ||
+        !form.cityCode ||
+        !form.mobilePhone.trim()
+      ) {
+        alert(
+          'Completa nombre, ciudad y celular.'
+        );
+        return;
+      }
+
+      onSave({
+        customerType: 'NATURAL_PERSON',
+        fullName: form.fullName.trim(),
+        cityCode: form.cityCode,
+        mobilePhone:
+          form.mobilePhone.trim(),
+      });
+
+      return;
+    }
+
+    if (form.customerType === 'COMPANY') {
+      if (
+        !form.legalName.trim() ||
+        !form.taxId.trim() ||
+        !form.companyPhone.trim() ||
+        !form.cityCode ||
+        !form.addressText.trim() ||
+        !form.legalRepresentativeName.trim()
+      ) {
+        alert(
+          'Completa todos los datos obligatorios de la empresa.'
+        );
+        return;
+      }
+
+      onSave({
+        customerType: 'COMPANY',
+        legalName: form.legalName.trim(),
+        taxId: form.taxId.trim(),
+        companyPhone:
+          form.companyPhone.trim(),
+        cityCode: form.cityCode,
+        addressText:
+          form.addressText.trim(),
+        mapsUrl:
+          form.mapsUrl.trim() || null,
+        legalRepresentativeName:
+          form.legalRepresentativeName.trim(),
+      });
+
+      return;
+    }
+
+    alert(
+      'Selecciona Persona natural o Empresa.'
+    );
+  }
+
+  return (
+    <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-orange-500">
+            Datos para proformas
+          </p>
+
+          <h3 className="mt-1 text-xl font-black text-slate-900">
+            Perfil del cliente
+          </h3>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Información legal y comercial utilizada en las proformas.
+          </p>
+        </div>
+
+        {!editing && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="rounded-2xl bg-orange-500 px-5 py-3 text-sm font-bold text-white hover:bg-orange-600"
+          >
+            {profile?.customerType ===
+            'UNDEFINED'
+              ? 'Completar perfil'
+              : 'Editar datos'}
+          </button>
+        )}
+      </div>
+
+      {!editing && (
+        <div className="mt-6">
+          {profile?.customerType ===
+            'NATURAL_PERSON' && (
+            <div className="grid gap-5 md:grid-cols-4">
+              <ProfileInfo
+                label="Tipo"
+                value="Persona natural"
+              />
+
+              <ProfileInfo
+                label="Nombre completo"
+                value={profile.fullName}
+              />
+
+              <ProfileInfo
+                label="Ciudad"
+                value={
+                  profile.cityName
+                    ? `${profile.cityName} — ${
+                        profile.departmentName || ''
+                      }`
+                    : '-'
+                }
+              />
+
+              <ProfileInfo
+                label="Celular"
+                value={profile.mobilePhone}
+              />
+            </div>
+          )}
+
+          {profile?.customerType ===
+            'COMPANY' && (
+            <div className="grid gap-5 md:grid-cols-3">
+              <ProfileInfo
+                label="Razón social"
+                value={profile.legalName}
+              />
+
+              <ProfileInfo
+                label="NIT"
+                value={profile.taxId}
+              />
+
+              <ProfileInfo
+                label="Teléfono"
+                value={profile.companyPhone}
+              />
+
+              <ProfileInfo
+                label="Ciudad"
+                value={
+                  profile.cityName
+                    ? `${profile.cityName} — ${
+                        profile.departmentName || ''
+                      }`
+                    : '-'
+                }
+              />
+
+              <ProfileInfo
+                label="Representante legal"
+                value={
+                  profile.legalRepresentativeName
+                }
+              />
+
+              <ProfileInfo
+                label="Dirección"
+                value={profile.addressText}
+              />
+
+              {profile.mapsUrl && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Google Maps
+                  </p>
+
+                  <a
+                    href={profile.mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-block font-bold text-orange-600 hover:underline"
+                  >
+                    Abrir ubicación
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
+          {(!profile ||
+            profile.customerType ===
+              'UNDEFINED') && (
+            <div className="rounded-2xl border border-dashed border-orange-200 bg-orange-50 p-5 text-sm font-semibold text-orange-700">
+              Debe completar el perfil del cliente antes de generar una proforma.
+            </div>
+          )}
+        </div>
+      )}
+
+      {editing && (
+        <form
+          onSubmit={handleSubmit}
+          className="mt-6 space-y-6"
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            <ProfileTypeButton
+              active={
+                form.customerType ===
+                'NATURAL_PERSON'
+              }
+              label="Persona natural"
+              onClick={() =>
+                updateField(
+                  'customerType',
+                  'NATURAL_PERSON'
+                )
+              }
+            />
+
+            <ProfileTypeButton
+              active={
+                form.customerType ===
+                'COMPANY'
+              }
+              label="Empresa"
+              onClick={() =>
+                updateField(
+                  'customerType',
+                  'COMPANY'
+                )
+              }
+            />
+          </div>
+
+          {form.customerType ===
+            'NATURAL_PERSON' && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <ProfileInput
+                label="Nombre completo"
+                value={form.fullName}
+                onChange={(value) =>
+                  updateField(
+                    'fullName',
+                    value
+                  )
+                }
+              />
+
+              <ProfileCitySelect
+                cities={cities}
+                value={form.cityCode}
+                onChange={(value) =>
+                  updateField(
+                    'cityCode',
+                    value
+                  )
+                }
+              />
+
+              <ProfileInput
+                label="Número de celular"
+                value={form.mobilePhone}
+                onChange={(value) =>
+                  updateField(
+                    'mobilePhone',
+                    value
+                  )
+                }
+              />
+            </div>
+          )}
+
+          {form.customerType ===
+            'COMPANY' && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <ProfileInput
+                label="Razón social"
+                value={form.legalName}
+                onChange={(value) =>
+                  updateField(
+                    'legalName',
+                    value
+                  )
+                }
+              />
+
+              <ProfileInput
+                label="NIT"
+                value={form.taxId}
+                onChange={(value) =>
+                  updateField('taxId', value)
+                }
+              />
+
+              <ProfileInput
+                label="Teléfono"
+                value={form.companyPhone}
+                onChange={(value) =>
+                  updateField(
+                    'companyPhone',
+                    value
+                  )
+                }
+              />
+
+              <ProfileCitySelect
+                cities={cities}
+                value={form.cityCode}
+                onChange={(value) =>
+                  updateField(
+                    'cityCode',
+                    value
+                  )
+                }
+              />
+
+              <ProfileInput
+                label="Representante legal"
+                value={
+                  form.legalRepresentativeName
+                }
+                onChange={(value) =>
+                  updateField(
+                    'legalRepresentativeName',
+                    value
+                  )
+                }
+              />
+
+              <ProfileInput
+                label="Dirección"
+                value={form.addressText}
+                onChange={(value) =>
+                  updateField(
+                    'addressText',
+                    value
+                  )
+                }
+              />
+
+              <div className="md:col-span-2">
+                <ProfileInput
+                  label="Enlace de Google Maps"
+                  value={form.mapsUrl}
+                  onChange={(value) =>
+                    updateField(
+                      'mapsUrl',
+                      value
+                    )
+                  }
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={saving}
+              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-2xl bg-orange-500 px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {saving
+                ? 'Guardando...'
+                : 'Guardar datos'}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function ProfileInfo({ label, value }) {
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+
+      <p className="mt-1 font-bold text-slate-900">
+        {value || '-'}
+      </p>
+    </div>
+  );
+}
+
+function ProfileTypeButton({
+  active,
+  label,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border p-4 text-left font-black ${
+        active
+          ? 'border-orange-500 bg-orange-50 text-orange-700'
+          : 'border-slate-200 bg-white text-slate-700'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ProfileInput({
+  label,
+  value,
+  onChange,
+}) {
+  return (
+    <label>
+      <span className="text-sm font-bold text-slate-700">
+        {label}
+      </span>
+
+      <input
+        value={value}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-orange-300"
+      />
+    </label>
+  );
+}
+
+function ProfileCitySelect({
+  cities,
+  value,
+  onChange,
+}) {
+  return (
+    <label>
+      <span className="text-sm font-bold text-slate-700">
+        Ciudad
+      </span>
+
+      <select
+        value={value}
+        onChange={(event) =>
+          onChange(event.target.value)
+        }
+        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-orange-300"
+      >
+        <option value="">
+          Seleccionar ciudad
+        </option>
+
+        {cities.map((city) => (
+          <option
+            key={city.code}
+            value={city.code}
+          >
+            {city.name} — {city.department}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

@@ -76,6 +76,15 @@ public class TypedProformaLcl {
     @Column(name = "volume_cbm", precision = 14, scale = 3)
     private BigDecimal volumeCbm;
 
+    @Column(name = "exchange_rate", precision = 14, scale = 4)
+    private BigDecimal exchangeRate;
+
+    @Column(name = "tax_exchange_rate", precision = 14, scale = 4)
+    private BigDecimal taxExchangeRate;
+
+    @Column(name = "calculation_rule_version", length = 50)
+    private String calculationRuleVersion;
+
     @Column(name = "cargo_description", columnDefinition = "text")
     private String cargoDescription;
 
@@ -287,6 +296,30 @@ public class TypedProformaLcl {
 
     public void setVolumeCbm(BigDecimal volumeCbm) {
         this.volumeCbm = volumeCbm;
+    }
+
+    public BigDecimal getExchangeRate() {
+        return exchangeRate;
+    }
+
+    public void setExchangeRate(BigDecimal exchangeRate) {
+        this.exchangeRate = exchangeRate;
+    }
+
+    public BigDecimal getTaxExchangeRate() {
+        return taxExchangeRate;
+    }
+
+    public void setTaxExchangeRate(BigDecimal taxExchangeRate) {
+        this.taxExchangeRate = taxExchangeRate;
+    }
+
+    public String getCalculationRuleVersion() {
+        return calculationRuleVersion;
+    }
+
+    public void setCalculationRuleVersion(String calculationRuleVersion) {
+        this.calculationRuleVersion = calculationRuleVersion;
     }
 
     public String getCargoDescription() {

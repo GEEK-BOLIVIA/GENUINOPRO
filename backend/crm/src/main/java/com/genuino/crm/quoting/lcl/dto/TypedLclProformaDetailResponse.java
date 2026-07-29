@@ -53,6 +53,12 @@ public class TypedLclProformaDetailResponse {
     private Integer packageCount;
     private BigDecimal grossWeightKg;
     private BigDecimal volumeCbm;
+
+    private BigDecimal exchangeRate;
+
+    private BigDecimal taxExchangeRate;
+
+    private String calculationRuleVersion;
     private String cargoDescription;
 
     private BigDecimal freightRate;
@@ -313,6 +319,30 @@ public class TypedLclProformaDetailResponse {
     public void setVolumeCbm(BigDecimal volumeCbm) {
         this.volumeCbm = volumeCbm;
     }
+
+public BigDecimal getExchangeRate() {
+    return exchangeRate;
+}
+
+public void setExchangeRate(BigDecimal exchangeRate) {
+    this.exchangeRate = exchangeRate;
+}
+
+public BigDecimal getTaxExchangeRate() {
+    return taxExchangeRate;
+}
+
+public void setTaxExchangeRate(BigDecimal taxExchangeRate) {
+    this.taxExchangeRate = taxExchangeRate;
+}
+
+public String getCalculationRuleVersion() {
+    return calculationRuleVersion;
+}
+
+public void setCalculationRuleVersion(String calculationRuleVersion) {
+    this.calculationRuleVersion = calculationRuleVersion;
+}
 
     public String getCargoDescription() {
         return cargoDescription;

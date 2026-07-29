@@ -40,7 +40,25 @@ public class LclOperationalCalculationResponse {
     private BigDecimal usdConvertedToBs;
     private BigDecimal grandTotalBs;
 
+    private BigDecimal exchangeRate;
 
+    private BigDecimal taxExchangeRate;
+
+    public BigDecimal getExchangeRate() {
+        return exchangeRate;
+    }
+
+    public void setExchangeRate(BigDecimal exchangeRate) {
+        this.exchangeRate = exchangeRate;
+    }
+
+    public BigDecimal getTaxExchangeRate() {
+        return taxExchangeRate;
+    }
+
+    public void setTaxExchangeRate(BigDecimal taxExchangeRate) {
+        this.taxExchangeRate = taxExchangeRate;
+    }
 
     public BigDecimal getMerchandiseValueUsd() {
         return merchandiseValueUsd;
