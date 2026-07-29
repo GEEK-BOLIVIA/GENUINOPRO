@@ -1,0 +1,2 @@
+ALTER TABLE commercial_task
+ADD COLUMN completed_at TIMESTAMP WITH TIME ZONE;
