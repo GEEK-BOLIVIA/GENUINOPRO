@@ -94,11 +94,6 @@ async function loadInitialData() {
         );
       }
 
-      if (!form.cityCode) {
-        throw new Error(
-          'La ciudad es obligatoria.'
-        );
-      }
 
       if (!form.mobilePhone.trim()) {
         throw new Error(

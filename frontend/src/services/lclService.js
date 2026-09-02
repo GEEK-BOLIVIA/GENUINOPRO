@@ -120,3 +120,13 @@ export async function clientRejectLclProforma(id, reason) {
     body: JSON.stringify({ reason }),
   });
 }
+
+export async function updateOperationalLclProforma(id, payload) {
+  return apiFetch(
+    `/typed-proformas/lcl/${id}/operational`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }
+  );
+}

@@ -83,8 +83,29 @@ public class TypedLclPdfService {
 
                     info.addCell(
                             infoBox(
+                                    "Fecha de emisión",
+                                    data.getIssueDate(),
+                                    labelFont,
+                                    textFont
+                            )
+                    );
+
+                    info.addCell(
+                            infoBox(
+                                    "Cantidad",
+                                    data.getPackageCount(),
+                                    labelFont,
+                                    textFont
+                            )
+                    );
+
+                    info.addCell(
+                            infoBox(
                                     "Origen",
-                                    data.getOriginCity(),
+                                    buildLocation(
+                                            data.getOriginCity(),
+                                            data.getOriginCountry()
+                                    ),
                                     labelFont,
                                     textFont
                             )
@@ -93,12 +114,16 @@ public class TypedLclPdfService {
                     info.addCell(
                             infoBox(
                                     "Destino",
-                                    data.getDestinationCity(),
+                                    buildLocation(
+                                            data.getDestinationCity(),
+                                            data.getDestinationCountry()
+                                    ),
                                     labelFont,
                                     textFont
                             )
                     );
-            document.add(info);
+
+                    document.add(info);
             document.add(spacer(14));
 
             addAttachmentsSection(document, attachments, whiteFont, labelFont, textFont);
@@ -327,6 +352,29 @@ public class TypedLclPdfService {
             return bd.setScale(2, RoundingMode.HALF_UP).toPlainString();
         }
         return value.toString();
+    }
+
+    private String buildLocation(String city, String country) {
+
+        boolean hasCity =
+                city != null && !city.isBlank();
+
+        boolean hasCountry =
+                country != null && !country.isBlank();
+
+        if (hasCity && hasCountry) {
+            return city + " - " + country;
+        }
+
+        if (hasCity) {
+            return city;
+        }
+
+        if (hasCountry) {
+            return country;
+        }
+
+        return "Sin información";
     }
 
     private String safe(Object value) {

@@ -2,7 +2,6 @@ import {
   CalendarClock,
   Clock3,
   PhoneCall,
-  Plus,
   Search,
 } from 'lucide-react';
 
@@ -81,13 +80,6 @@ export default function TasksPage() {
           </p>
         </div>
 
-        <button
-          disabled
-          className="flex cursor-not-allowed items-center gap-2 rounded-2xl bg-slate-300 px-5 py-3 text-sm font-bold text-white"
-        >
-          <Plus size={18} />
-          Nueva tarea
-        </button>
       </section>
 
       <section className="grid gap-5 md:grid-cols-3">

@@ -10,9 +10,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
 
 import com.genuino.crm.quoting.common.service.ProformaAttachmentService;
 import com.genuino.crm.quoting.common.domain.ProformaAttachment;
+
+import com.genuino.crm.quoting.fcl.dto.TypedFclProformaDetailResponse;
 
 @RestController
 @RequestMapping("/api/typed-proformas/fcl")
@@ -37,10 +40,14 @@ public class TypedFclProformaController {
         return ResponseEntity.ok(service.findAll());
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<TypedFclProforma> findById(@PathVariable UUID id) {
-        return ResponseEntity.ok(service.findById(id));
-    }
+        @GetMapping("/{id}")
+        public ResponseEntity<TypedFclProformaDetailResponse> findById(
+                @PathVariable UUID id
+        ) {
+        return ResponseEntity.ok(
+                service.getDetail(id)
+        );
+        }
 
     @GetMapping("/{id}/pdf")
     public ResponseEntity<byte[]> downloadPdf(
@@ -93,11 +100,17 @@ public class TypedFclProformaController {
         return ResponseEntity.ok(service.approve(id));
     }
 
-    @PostMapping("/{id}/reject")
-    public ResponseEntity<TypedFclProforma> reject(
-            @PathVariable UUID id
-    ) {
-        return ResponseEntity.ok(service.reject(id));
+@PostMapping("/{id}/reject")
+public ResponseEntity<TypedFclProforma> reject(
+        @PathVariable UUID id,
+        @RequestBody Map<String, String> body
+) {
+    return ResponseEntity.ok(
+            service.reject(
+                    id,
+                    body.get("reason")
+            )
+    );
 }
 
     @PostMapping("/{id}/approve-customer")

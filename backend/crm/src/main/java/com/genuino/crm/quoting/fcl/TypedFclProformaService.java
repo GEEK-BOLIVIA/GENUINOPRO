@@ -22,6 +22,8 @@ import com.genuino.crm.quoting.common.service.ProformaAccessService;
 
 import com.genuino.crm.customerprofile.ProformaCustomerSnapshotService;
 
+import com.genuino.crm.quoting.fcl.dto.TypedFclProformaDetailResponse;
+
 @Service
 public class TypedFclProformaService {
 
@@ -72,6 +74,30 @@ public class TypedFclProformaService {
 
         return repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Proforma FCL no encontrada"));
+    }
+
+    @Transactional(readOnly = true)
+    public TypedFclProformaDetailResponse getDetail(UUID id) {
+
+        TypedFclProforma item = findById(id);
+
+        TypedProforma parent = typedProformaRepository
+                .findById(id)
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "No existe la proforma padre FCL"
+                        )
+                );
+
+        TypedFclProformaDetailResponse response =
+                new TypedFclProformaDetailResponse();
+
+        response.setProforma(item);
+        response.setRejectionReason(
+                parent.getRejectionReason()
+        );
+
+        return response;
     }
 
     @Transactional
@@ -329,6 +355,14 @@ public class TypedFclProformaService {
     @Transactional
     public TypedFclProforma submitForReview(UUID id) {
         TypedFclProforma item = findById(id);
+
+        if (!"DRAFT".equalsIgnoreCase(item.getStatus())
+                && !"REJECTED".equalsIgnoreCase(item.getStatus())) {
+
+            throw new IllegalStateException(
+                    "Solo una proforma en borrador o rechazada puede enviarse a revisión"
+            );
+        }
         item.setStatus("IN_REVIEW");
 
         typedProformaRepository.findById(id).ifPresent(parent -> {
@@ -377,15 +411,39 @@ public class TypedFclProformaService {
     }
 
     @Transactional
-    public TypedFclProforma reject(UUID id) {
+    public TypedFclProforma reject(
+            UUID id,
+            String reason
+    ) {
+        if (reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException(
+                    "El motivo del rechazo es obligatorio"
+            );
+        }
+
         TypedFclProforma item = findById(id);
+
+        if (!"IN_REVIEW".equalsIgnoreCase(item.getStatus())) {
+            throw new IllegalStateException(
+                    "Solo una proforma en revisión puede ser rechazada"
+            );
+        }
+
         item.setStatus("REJECTED");
 
-        typedProformaRepository.findById(id).ifPresent(parent -> {
-            parent.setStatus(TypedProformaStatus.REJECTED);
-            parent.setUpdatedAt(LocalDateTime.now());
-            typedProformaRepository.save(parent);
-        });
+        TypedProforma parent = typedProformaRepository
+                .findById(id)
+                .orElseThrow(() ->
+                        new IllegalStateException(
+                                "No existe la proforma padre FCL"
+                        )
+                );
+
+        parent.setStatus(TypedProformaStatus.REJECTED);
+        parent.setRejectionReason(reason.trim());
+        parent.setUpdatedAt(LocalDateTime.now());
+
+        typedProformaRepository.save(parent);
 
         return repository.save(item);
     }
@@ -409,9 +467,11 @@ public class TypedFclProformaService {
 
         TypedFclProforma current = findById(id);
 
-        if (!"DRAFT".equalsIgnoreCase(current.getStatus())) {
+        if (!"DRAFT".equalsIgnoreCase(current.getStatus())
+                && !"REJECTED".equalsIgnoreCase(current.getStatus())) {
+
             throw new IllegalStateException(
-                    "Solo se puede editar una proforma FCL en estado DRAFT"
+                    "Solo se puede editar una proforma FCL en borrador o rechazada"
             );
         }
 

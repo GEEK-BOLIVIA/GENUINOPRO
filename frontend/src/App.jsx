@@ -20,6 +20,12 @@ import Opportunity360Page from './pages/Opportunity360Page';
 
 import FclPage from './pages/FclPage';
 
+import HblPage from './pages/HblPage';
+
+import AirPage from './pages/AirPage';
+
+
+
 
 export default function App() {
   const auth = useAuth();
@@ -49,6 +55,8 @@ export default function App() {
     location.pathname.startsWith('/pipeline') ? 'PIPELINE' :
     location.pathname.startsWith('/lcl') ? 'LCL' :
     location.pathname.startsWith('/fcl') ? 'LCL' :
+    location.pathname.startsWith('/hbl') ? 'LCL' :
+    location.pathname.startsWith('/air') ? 'LCL' :
     location.pathname.startsWith('/parameters') ? 'PARAMETERS' :
     location.pathname.startsWith('/admin/users') ? 'ADMIN_USERS' :
     location.pathname.startsWith('/tasks') ? 'TASKS' :
@@ -60,61 +68,206 @@ export default function App() {
     navigate(pathByPage[page] || '/dashboard');
   }
 
-  return (
-    <AppShell currentPage={currentPage} setCurrentPage={setCurrentPage}>
-      <Routes>
-        <Route
-          path="/dashboard"
-          element={
-            <DashboardPage
-              username={auth?.tokenParsed?.preferred_username || 'admin'}
-            />
-          }
-        />
+return (
+  <AppShell
+    currentPage={currentPage}
+    setCurrentPage={setCurrentPage}
+  >
+    <Routes>
 
-        <Route path="/leads" element={<LeadsPage />} />
-        <Route path="/inbox" element={<InboxPage />} />
-        <Route path="/pipeline" element={<PipelinePage />} />
+      <Route
+        path="/dashboard"
+        element={
+          <DashboardPage
+            username={
+              auth?.tokenParsed?.preferred_username ||
+              'admin'
+            }
+          />
+        }
+      />
 
-        <Route path="/lcl" element={<LclPage />} />
-        <Route path="/lcl/nueva" element={<LclPage mode="new" />} />
-        <Route path="/lcl/:id" element={<LclPage mode="detail" />} />
-        <Route path="/tasks" element={<TasksPage />} />
+      <Route
+        path="/leads"
+        element={<LeadsPage />}
+      />
 
-        <Route path="/account" element={<MyAccountPage />} />
+      <Route
+        path="/inbox"
+        element={<InboxPage />}
+      />
 
-        <Route path="/fcl" element={<FclPage />} />
-        <Route path="/fcl/nueva" element={<FclPage mode="new" />} />
-        <Route path="/fcl/editar/:id" element={<FclPage mode="edit" />} />
-        <Route path="/fcl/:id" element={<FclPage mode="detail" />} />
+      <Route
+        path="/pipeline"
+        element={<PipelinePage />}
+      />
 
+      <Route
+        path="/tasks"
+        element={<TasksPage />}
+      />
 
-        <Route
-          path="/parameters"
-          element={
-            hasRole('ADMIN', 'GERENCIA')
-              ? <ParametersPage />
-              : <Navigate to="/dashboard" replace />
-          }
-        />
+      <Route
+        path="/account"
+        element={<MyAccountPage />}
+      />
 
-        <Route
-          path="/admin/users"
-          element={
-            hasRole('ADMIN')
-              ? <UsersAdminPage />
-              : <Navigate to="/dashboard" replace />
-          }
-        />
+      {/* =====================================================
+          OPORTUNIDADES
+      ====================================================== */}
 
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route
+        path="/opportunities/:id"
+        element={<Opportunity360Page />}
+      />
 
-        <Route
-          path="/opportunities/:id"
-          element={<Opportunity360Page />}
-        />
-      </Routes>
-    </AppShell>
-  );
+      {/* =====================================================
+          LCL
+      ====================================================== */}
+
+      <Route
+        path="/lcl"
+        element={<LclPage />}
+      />
+
+      <Route
+        path="/lcl/nueva"
+        element={<LclPage mode="new" />}
+      />
+
+      <Route
+        path="/lcl/:id/editar"
+        element={<LclPage mode="edit" />}
+      />
+
+      <Route
+        path="/lcl/:id"
+        element={<LclPage mode="detail" />}
+      />
+
+      {/* =====================================================
+          FCL
+      ====================================================== */}
+
+      <Route
+        path="/fcl"
+        element={<FclPage />}
+      />
+
+      <Route
+        path="/fcl/nueva"
+        element={<FclPage mode="new" />}
+      />
+
+      <Route
+        path="/fcl/editar/:id"
+        element={<FclPage mode="edit" />}
+      />
+
+      <Route
+        path="/fcl/:id"
+        element={<FclPage mode="detail" />}
+      />
+
+      {/* =====================================================
+          HBL
+      ====================================================== */}
+
+      <Route
+        path="/hbl/nueva"
+        element={<HblPage mode="new" />}
+      />
+
+      <Route
+        path="/hbl/:id/editar"
+        element={<HblPage mode="edit" />}
+      />
+
+      <Route
+        path="/hbl/:id"
+        element={<HblPage mode="detail" />}
+      />
+
+      {/* =====================================================
+          AÉREO
+      ====================================================== */}
+
+      <Route
+        path="/air/nueva"
+        element={<AirPage mode="new" />}
+      />
+
+      <Route
+        path="/air/:id/editar"
+        element={<AirPage mode="edit" />}
+      />
+
+      <Route
+        path="/air/:id"
+        element={<AirPage mode="detail" />}
+      />
+
+      {/* =====================================================
+          PARÁMETROS
+      ====================================================== */}
+
+      <Route
+        path="/parameters"
+        element={
+          hasRole('ADMIN', 'GERENCIA')
+            ? <ParametersPage />
+            : (
+              <Navigate
+                to="/dashboard"
+                replace
+              />
+            )
+        }
+      />
+
+      {/* =====================================================
+          ADMINISTRACIÓN
+      ====================================================== */}
+
+      <Route
+        path="/admin/users"
+        element={
+          hasRole('ADMIN')
+            ? <UsersAdminPage />
+            : (
+              <Navigate
+                to="/dashboard"
+                replace
+              />
+            )
+        }
+      />
+
+      {/* =====================================================
+          DEFAULT
+      ====================================================== */}
+
+      <Route
+        path="/"
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
+      />
+
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
+      />
+
+    </Routes>
+  </AppShell>
+);
 }

@@ -175,4 +175,18 @@ public class TypedLclProformaController {
         );
     }
 
+    @PreAuthorize("hasAnyRole('VENDEDOR','ADMIN','OWNER')")
+    @PutMapping("/{id}/operational")
+    public ResponseEntity<TypedLclProformaDetailResponse> updateOperational(
+            @PathVariable UUID id,
+            @RequestBody LclOperationalCalculationRequest request
+    ) {
+        return ResponseEntity.ok(
+                typedLclProformaService.updateFromOperational(
+                        id,
+                        request
+                )
+        );
+    }
+
 }

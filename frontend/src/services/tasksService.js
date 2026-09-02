@@ -11,8 +11,12 @@ export async function createLeadTask(leadId, payload) {
   });
 }
 
-export async function getSellerTasks(assignedTo = 'admin') {
-  return apiFetch(`/tasks?assignedTo=${assignedTo}`);
+export async function getSellerTasks(assignedTo) {
+  const query = assignedTo
+    ? `?assignedTo=${encodeURIComponent(assignedTo)}`
+    : '';
+
+  return apiFetch(`/tasks${query}`);
 }
 
 export async function getAllTasks() {

@@ -10,6 +10,18 @@ import {
 
 import { getFclProformas } from './fclService';
 
+import {
+  getHblProformas,
+  getHblProformaById,
+  submitHblForReview,
+  approveHblProforma,
+  rejectHblProforma,
+} from './hblService';
+
+import {
+  getAirProformas,
+} from './airService';
+
 const SERVICES = {
   LCL: {
     list: getLclProformas,
@@ -20,8 +32,21 @@ const SERVICES = {
     clientAccept: clientAcceptLclProforma,
     clientReject: clientRejectLclProforma,
   },
+
   FCL: {
     list: getFclProformas,
+  },
+
+  HBL: {
+    list: getHblProformas,
+    detail: getHblProformaById,
+    approve: approveHblProforma,
+    reject: rejectHblProforma,
+    submitReview: submitHblForReview,
+  },
+
+  AEREO: {
+    list: getAirProformas,
   },
 };
 

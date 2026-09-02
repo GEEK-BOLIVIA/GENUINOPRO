@@ -79,53 +79,88 @@ public class LeadCustomerProfileService {
         return profile;
     }
 
-    private void validate(UpsertLeadCustomerProfileRequest request) {
+        private void validate(UpsertLeadCustomerProfileRequest request) {
+
         if (request == null || request.getCustomerType() == null) {
-            throw new IllegalArgumentException(
-                    "El tipo de cliente es obligatorio."
-            );
+                throw new IllegalArgumentException(
+                        "El tipo de cliente es obligatorio."
+                );
         }
 
         if (CustomerType.UNDEFINED.equals(request.getCustomerType())) {
-            throw new IllegalArgumentException(
-                    "Debe seleccionar Persona natural o Empresa."
-            );
+                throw new IllegalArgumentException(
+                        "Debe seleccionar Persona natural o Empresa."
+                );
         }
 
         if (CustomerType.NATURAL_PERSON.equals(request.getCustomerType())) {
-            require(request.getFullName(), "El nombre completo es obligatorio.");
-            require(request.getCityCode(), "La ciudad es obligatoria.");
-            require(request.getMobilePhone(), "El celular es obligatorio.");
 
-            cityRepository.findById(request.getCityCode())
-                    .filter(city -> Boolean.TRUE.equals(city.getActive()))
-                    .orElseThrow(() ->
-                            new IllegalArgumentException(
-                                    "La ciudad seleccionada no es válida."
-                            )
-                    );
+                require(
+                        request.getFullName(),
+                        "El nombre completo es obligatorio."
+                );
+
+                require(
+                        request.getMobilePhone(),
+                        "El celular es obligatorio."
+                );
+
+                validateCityIfPresent(
+                        request.getCityCode()
+                );
         }
 
         if (CustomerType.COMPANY.equals(request.getCustomerType())) {
-            require(request.getLegalName(), "La razón social es obligatoria.");
-            require(request.getTaxId(), "El NIT es obligatorio.");
-            require(request.getCompanyPhone(), "El teléfono es obligatorio.");
-            require(request.getCityCode(), "La ciudad es obligatoria.");
-            require(request.getAddressText(), "La dirección es obligatoria.");
-            require(
-                    request.getLegalRepresentativeName(),
-                    "El representante legal es obligatorio."
-            );
 
-            cityRepository.findById(request.getCityCode())
-                    .filter(city -> Boolean.TRUE.equals(city.getActive()))
-                    .orElseThrow(() ->
-                            new IllegalArgumentException(
-                                    "La ciudad seleccionada no es válida."
-                            )
-                    );
+                require(
+                        request.getLegalName(),
+                        "La razón social es obligatoria."
+                );
+
+                require(
+                        request.getTaxId(),
+                        "El NIT es obligatorio."
+                );
+
+                require(
+                        request.getCompanyPhone(),
+                        "El teléfono es obligatorio."
+                );
+
+                require(
+                        request.getAddressText(),
+                        "La dirección es obligatoria."
+                );
+
+                require(
+                        request.getLegalRepresentativeName(),
+                        "El representante legal es obligatorio."
+                );
+
+                validateCityIfPresent(
+                        request.getCityCode()
+                );
         }
-    }
+        }
+
+        private void validateCityIfPresent(String cityCode) {
+
+        if (cityCode == null || cityCode.isBlank()) {
+                return;
+        }
+
+        cityRepository.findById(cityCode.trim())
+                .filter(city ->
+                        Boolean.TRUE.equals(
+                                city.getActive()
+                        )
+                )
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "La ciudad seleccionada no es válida."
+                        )
+                );
+        }
 
     private void require(String value, String message) {
         if (value == null || value.isBlank()) {
@@ -138,7 +173,9 @@ public class LeadCustomerProfileService {
             UpsertLeadCustomerProfileRequest request
     ) {
         profile.setFullName(request.getFullName().trim());
-        profile.setCityCode(request.getCityCode().trim());
+        profile.setCityCode(
+                trimToNull(request.getCityCode())
+        );
         profile.setMobilePhone(request.getMobilePhone().trim());
     }
 
@@ -159,7 +196,7 @@ public class LeadCustomerProfileService {
         );
 
         profile.setCityCode(
-                request.getCityCode().trim()
+                trimToNull(request.getCityCode())
         );
 
         profile.setAddressText(

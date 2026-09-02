@@ -47,6 +47,8 @@ import com.genuino.crm.quoting.common.service.ProformaAccessService;
 
 import com.genuino.crm.customerprofile.ProformaCustomerSnapshotService;
 
+import java.time.LocalDate;
+
 @Service
 public class TypedLclProformaService {
 
@@ -309,6 +311,9 @@ public class TypedLclProformaService {
 
         lcl.setProformaId(proformaId);
 
+        lcl.setIssueDate(LocalDate.now());
+        lcl.setValidityDays(1);
+
         lcl.setCustomerName(request.getCustomerName());
         lcl.setCustomerPhone(request.getCustomerPhone());
         lcl.setCustomerAddress(request.getShippingAddress());
@@ -342,10 +347,11 @@ public class TypedLclProformaService {
         lcl.setOtherCharges(calc.getTotalBs());
 
         lcl.setSellerName(request.getAdvisorName());
-        lcl.setDestinationCity(request.getShippingAddress());
+        lcl.setDestinationCity(request.getDestinationCity());
         lcl.setDestinationCountry("Bolivia");
+
+        lcl.setOriginCity(request.getOriginCity());
         lcl.setOriginCountry("China");
-        lcl.setOriginCity("-");
         lcl.setCargoType("LCL");
 
 
@@ -373,6 +379,111 @@ public class TypedLclProformaService {
         return getById(proformaId);
     }
 
+    @Transactional
+    public TypedLclProformaDetailResponse updateFromOperational(
+            UUID id,
+            LclOperationalCalculationRequest request
+    ) {
+        TypedProforma proforma = typedProformaRepository.findById(id)
+                .orElseThrow(() ->
+                        new NoSuchElementException(
+                                "No existe la proforma " + id
+                        )
+                );
+
+        if (!TypedProformaStatus.REJECTED.equals(proforma.getStatus())
+                && !TypedProformaStatus.DRAFT.equals(proforma.getStatus())) {
+
+            throw new IllegalStateException(
+                    "Solo una proforma en borrador o rechazada puede editarse."
+            );
+        }
+
+        TypedProformaLcl lcl = typedProformaLclRepository.findById(id)
+                .orElseThrow(() ->
+                        new NoSuchElementException(
+                                "No existe el detalle LCL para la proforma " + id
+                        )
+                );
+
+        LclOperationalCalculationResponse calc =
+                lclOperationalCalculationService.calculate(request);
+
+        // =========================
+        // CABECERA DE LA PROFORMA
+        // =========================
+
+        proforma.setTotal(calc.getGrandTotalBs());
+        proforma.setEstimatedProfit(calc.getGenuinoCommissionBs());
+        proforma.setUpdatedAt(LocalDateTime.now());
+        proforma.setUpdatedBy("operational-editor");
+
+        typedProformaRepository.save(proforma);
+
+        // =========================
+        // DATOS OPERACIONALES LCL
+        // =========================
+
+        lcl.setCustomerName(request.getCustomerName());
+        lcl.setCustomerPhone(request.getCustomerPhone());
+        lcl.setCustomerAddress(request.getShippingAddress());
+
+        lcl.setSellerName(request.getAdvisorName());
+
+        lcl.setCargoDescription(request.getProductName());
+        lcl.setPackageCount(request.getQuantity());
+        lcl.setGrossWeightKg(request.getWeightKg());
+        lcl.setVolumeCbm(request.getCbm());
+
+        lcl.setExchangeRate(calc.getExchangeRate());
+        lcl.setTaxExchangeRate(calc.getTaxExchangeRate());
+
+        lcl.setOriginCity(request.getOriginCity());
+        lcl.setOriginCountry("China");
+
+        lcl.setDestinationCity(request.getDestinationCity());
+        lcl.setDestinationCountry("Bolivia");
+
+        lcl.setOriginCharges(calc.getFirstPaymentUsd());
+        lcl.setDestinationCharges(calc.getSecondPaymentUsd());
+        lcl.setCustomsCharges(calc.getCustomsTaxesBs());
+        lcl.setOtherCharges(calc.getTotalBs());
+
+        lcl.setSubtotalSell(calc.getGrandTotalBs());
+        lcl.setEstimatedProfit(calc.getGenuinoCommissionBs());
+
+        typedProformaLclRepository.save(lcl);
+
+        // =========================
+        // REGENERAR LÍNEAS
+        // =========================
+
+        typedProformaChargeLineRepository.deleteByProformaId(id);
+
+        int sort = 1;
+
+        for (var generatedLine : calc.getGeneratedLines()) {
+
+            TypedProformaChargeLine line =
+                    new TypedProformaChargeLine();
+
+            line.setId(UUID.randomUUID());
+            line.setProformaId(id);
+            line.setLineGroup("SELL");
+            line.setCode(generatedLine.getCode());
+            line.setDescription(generatedLine.getDescription());
+            line.setQuantity(BigDecimal.ONE);
+            line.setUnitPrice(generatedLine.getAmount());
+            line.setTotal(generatedLine.getAmount());
+            line.setEditable(true);
+            line.setSortOrder(sort++);
+
+            typedProformaChargeLineRepository.save(line);
+        }
+
+        return getById(id);
+    }
+
     @Transactional(readOnly = true)
     public TypedLclProformaDetailResponse getById(UUID id) {
         TypedProforma proforma = proformaAccessService.getAuthorizedProforma(id);
@@ -393,6 +504,9 @@ public class TypedLclProformaService {
         response.setTotal(proforma.getTotal());
         response.setEstimatedProfit(proforma.getEstimatedProfit());
         response.setNotes(proforma.getNotes());
+        response.setRejectionReason(
+                proforma.getRejectionReason()
+        );
 
         response.setIssueDate(lcl.getIssueDate());
         response.setValidityDays(lcl.getValidityDays());
@@ -469,8 +583,12 @@ public class TypedLclProformaService {
         TypedProforma proforma = typedProformaRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("No existe la proforma tipificada con id " + id));
 
-        if (!TypedProformaStatus.DRAFT.equals(proforma.getStatus())) {
-            throw new IllegalStateException("Solo se puede recalcular una proforma en estado DRAFT");
+        if (!TypedProformaStatus.DRAFT.equals(proforma.getStatus())
+                && !TypedProformaStatus.REJECTED.equals(proforma.getStatus())) {
+
+            throw new IllegalStateException(
+                    "Solo se puede modificar una proforma en borrador o rechazada"
+            );
         }
 
         TypedProformaLcl lcl = typedProformaLclRepository.findById(id)
@@ -575,8 +693,12 @@ public class TypedLclProformaService {
         TypedProforma proforma = typedProformaRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("No existe la proforma tipificada con id " + id));
 
-        if (!TypedProformaStatus.DRAFT.equals(proforma.getStatus())) {
-            throw new IllegalStateException("Solo una proforma en DRAFT puede enviarse a revisión");
+        if (!TypedProformaStatus.DRAFT.equals(proforma.getStatus())
+                && !TypedProformaStatus.REJECTED.equals(proforma.getStatus())) {
+
+            throw new IllegalStateException(
+                    "Solo una proforma en borrador o rechazada puede enviarse a revisión"
+            );
         }
 
         String safeActor = updatedBy == null || updatedBy.isBlank() ? "system" : updatedBy;

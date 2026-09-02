@@ -4,6 +4,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   calculateOperationalLcl,
   createOperationalLclProforma,
+  getLclProformaById,
+  updateOperationalLclProforma,
 } from '../../../services/lclService';
 
 import {
@@ -17,6 +19,8 @@ const initialForm = {
   customerName: '',
   advisorName: '',
   shippingAddress: '',
+  originCity: '',
+  destinationCity: '',
   customerPhone: '',
   productName: '',
   quantity: 1,
@@ -79,7 +83,10 @@ function SectionCard({ eyebrow, title, description, children }) {
   );
 }
 
-export default function LclOperationalSimulator() {
+export default function LclOperationalSimulator({
+  mode = 'new',
+  proformaId = null,
+}) {
 
   const navigate = useNavigate();  
   const [searchParams] = useSearchParams();
@@ -96,6 +103,11 @@ export default function LclOperationalSimulator() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   
+  const isEditMode =
+    mode === 'edit' && Boolean(proformaId);
+
+  const [isLoadingEdit, setIsLoadingEdit] =
+    useState(false);
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -124,8 +136,105 @@ export default function LclOperationalSimulator() {
     return '';
     }
 
+  useEffect(() => {
+    if (!isEditMode || !proformaId) return;
+
+    async function loadExistingProforma() {
+      try {
+        setIsLoadingEdit(true);
+        setError('');
+
+        const existing =
+          await getLclProformaById(proformaId);
+
+        const lines = Array.isArray(existing?.chargeLines)
+          ? existing.chargeLines
+          : [];
+
+        const findLine = (code) =>
+          lines.find((line) => line.code === code);
+
+        const fobLine = findLine('FOB');
+        const varLine = findLine('VAR');
+
+        setForm((prev) => ({
+          ...prev,
+
+          customerId:
+            existing.customerId || '',
+
+          opportunityId:
+            existing.opportunityId || '',
+
+          customerName:
+            existing.customerName || '',
+
+          advisorName:
+            existing.sellerName || '',
+
+          shippingAddress:
+            existing.customerAddress || '',
+
+          customerPhone:
+            existing.customerPhone || '',
+
+          productName:
+            existing.cargoDescription || '',
+
+          quantity:
+            existing.packageCount ?? 1,
+
+          weightKg:
+            existing.grossWeightKg ?? 0,
+
+          cbm:
+            existing.volumeCbm ?? 0,
+
+          originCity:
+            existing.originCity || '',
+
+          destinationCity:
+            existing.destinationCity || '',
+
+          exchangeRate:
+            existing.exchangeRate ?? 10,
+
+          taxExchangeRate:
+            existing.taxExchangeRate ?? 9,
+
+          // La línea FOB actual ya representa
+          // mercadería + envío a almacén.
+          merchandiseValueUsd:
+            Number(fobLine?.total || 0),
+
+          warehouseShippingUsd: 0,
+
+          miscellaneousExpensesBs:
+            Number(varLine?.total || 0),
+        }));
+
+      } catch (err) {
+        console.error(
+          'Error cargando proforma para edición',
+          err
+        );
+
+        setError(
+          err.message ||
+            'No se pudo cargar la proforma para editar.'
+        );
+      } finally {
+        setIsLoadingEdit(false);
+      }
+    }
+
+    loadExistingProforma();
+  }, [isEditMode, proformaId]);
+
     useEffect(() => {
     async function loadContext() {
+
+      if (isEditMode) return;
 
         try {
 
@@ -192,7 +301,7 @@ export default function LclOperationalSimulator() {
 
     loadContext();
 
-    }, [leadId, opportunityId]);
+    }, [leadId, opportunityId, isEditMode]);
   
   async function calculate() {
     try {
@@ -298,9 +407,30 @@ export default function LclOperationalSimulator() {
         iceAmountBs: Number(form.iceAmountBs || 0),
         };
 
-        const created = await createOperationalLclProforma(payload);
+        if (isEditMode) {
 
-        console.log('PROFORMA OPERATIVA CREADA', created);
+          const updated =
+            await updateOperationalLclProforma(
+              proformaId,
+              payload
+            );
+
+          console.log(
+            'PROFORMA LCL ACTUALIZADA',
+            updated
+          );
+
+          navigate(`/lcl/${proformaId}`);
+          return;
+        }
+
+        const created =
+          await createOperationalLclProforma(payload);
+
+        console.log(
+          'PROFORMA OPERATIVA CREADA',
+          created
+        );
 
         navigate(`/lcl/${created.id}`);
     } catch (err) {
@@ -311,18 +441,40 @@ export default function LclOperationalSimulator() {
     }
     }
 
+    if (isLoadingEdit) {
+      return (
+        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center">
+          <Loader2
+            className="mx-auto animate-spin"
+            size={24}
+          />
+
+          <p className="mt-3 text-sm font-bold text-slate-500">
+            Cargando proforma para edición...
+          </p>
+        </div>
+      );
+    }
+
   return (
     <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.3em] text-orange-500">
-            Simulador de Importación LCL
+            {isEditMode
+              ? 'Corrección de Proforma LCL'
+              : 'Simulador de Importación LCL'}
           </p>
+
           <h2 className="mt-1 text-2xl font-black text-slate-900">
-            Cotización rápida antes de proforma formal
+            {isEditMode
+              ? 'Modifica los datos observados'
+              : 'Cotización rápida antes de proforma formal'}
           </h2>
           <p className="mt-1 max-w-3xl text-sm text-slate-500">
-            Modifica cliente, mercancía, peso, CBM y costos para consultar escenarios en tiempo real. Cuando el resultado sea aprobado por el cliente, guarda la simulación como proforma.
+            {isEditMode
+              ? 'Corrige los datos observados en la revisión. Calcula nuevamente la operación y guarda las correcciones sobre esta misma proforma.'
+              : 'Modifica cliente, mercancía, peso, CBM y costos para consultar escenarios en tiempo real. Cuando el resultado sea correcto, guarda la simulación como proforma.'}
           </p>
         </div>
 
@@ -362,7 +514,26 @@ export default function LclOperationalSimulator() {
               <Field label="Cliente" value={form.customerName} onChange={(v) => update('customerName', v)} placeholder="Ej. Importbol" />
               <Field label="Teléfono" value={form.customerPhone} onChange={(v) => update('customerPhone', v)} placeholder="+591..." />
               <Field label="Asesor comercial" value={form.advisorName} onChange={(v) => update('advisorName', v)} />
-              <Field label="Dirección / ciudad destino" value={form.shippingAddress} onChange={(v) => update('shippingAddress', v)} placeholder="Ej. La Paz" />
+              <Field
+                label="Dirección cliente"
+                value={form.shippingAddress}
+                onChange={(v) => update('shippingAddress', v)}
+                placeholder="Dirección del cliente"
+              />
+
+              <Field
+                label="Origen"
+                value={form.originCity}
+                onChange={(v) => update('originCity', v)}
+                placeholder="Ej. Guangzhou"
+              />
+
+              <Field
+                label="Ciudad destino"
+                value={form.destinationCity}
+                onChange={(v) => update('destinationCity', v)}
+                placeholder="Ej. Cochabamba"
+              />
             </div>
           </SectionCard>
 
@@ -514,7 +685,11 @@ export default function LclOperationalSimulator() {
                 disabled={!result || isSaving}
                 className="w-full rounded-2xl bg-white px-6 py-4 text-sm font-black text-slate-950 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                {isSaving ? 'Guardando...' : 'Guardar proforma LCL'}
+                {isSaving
+                  ? 'Guardando...'
+                  : isEditMode
+                    ? 'Guardar correcciones'
+                    : 'Guardar proforma LCL'}
                 </button>
 
                 <div className="space-y-2">

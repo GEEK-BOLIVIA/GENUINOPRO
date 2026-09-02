@@ -129,7 +129,7 @@ export default function AppShell({ currentPage, setCurrentPage, children }) {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-20 items-center justify-between border-b border-slate-200 bg-white/90 px-8 backdrop-blur">
+        <header className="flex h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-8">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">
               Genuino CRM Enterprise

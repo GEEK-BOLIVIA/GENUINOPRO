@@ -55,12 +55,45 @@ public class KeycloakAdminService {
                 .resetPassword(credential);
     }
 
-    public AdminUserResponse createUser(CreateUserRequest request) {
+        public AdminUserResponse createUser(CreateUserRequest request) {
+
+        String roleName = request.role().trim().toUpperCase();
+
+        List<String> allowedRoles = List.of(
+                "ADMIN",
+                "GERENCIA",
+                "SUPERVISOR",
+                "VENDEDOR",
+                "CLIENTE"
+        );
+
+        if (!allowedRoles.contains(roleName)) {
+                throw new RuntimeException(
+                        "Rol no permitido: " + roleName
+                );
+        }
+
+        // Verificamos que el rol exista ANTES de crear el usuario.
+        RoleRepresentation role;
+
+        try {
+                role = keycloak
+                        .realm(realm)
+                        .roles()
+                        .get(roleName)
+                        .toRepresentation();
+        } catch (Exception e) {
+                throw new RuntimeException(
+                        "El rol " + roleName + " no existe en Keycloak.",
+                        e
+                );
+        }
+
         UserRepresentation user = new UserRepresentation();
-        user.setUsername(request.username());
-        user.setEmail(request.email());
-        user.setFirstName(request.firstName());
-        user.setLastName(request.lastName());
+        user.setUsername(request.username().trim());
+        user.setEmail(request.email().trim());
+        user.setFirstName(request.firstName().trim());
+        user.setLastName(request.lastName().trim());
         user.setEnabled(true);
         user.setEmailVerified(true);
 
@@ -71,26 +104,65 @@ public class KeycloakAdminService {
 
         user.setCredentials(List.of(credential));
 
-        Response response = keycloak.realm(realm).users().create(user);
+        Response response = keycloak
+                .realm(realm)
+                .users()
+                .create(user);
 
         if (response.getStatus() != 201) {
-            throw new RuntimeException("No se pudo crear el usuario en Keycloak. Status: " + response.getStatus());
+
+                int status = response.getStatus();
+                response.close();
+
+                throw new RuntimeException(
+                        "No se pudo crear el usuario en Keycloak. Status: " + status
+                );
         }
 
-        String userId = response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
+        String userId = response
+                .getLocation()
+                .getPath()
+                .replaceAll(".*/([^/]+)$", "$1");
 
-        assignRealmRole(userId, request.role());
+        response.close();
+
+        try {
+
+                keycloak.realm(realm)
+                        .users()
+                        .get(userId)
+                        .roles()
+                        .realmLevel()
+                        .add(List.of(role));
+
+        } catch (Exception e) {
+
+                // Rollback: no dejamos usuarios creados sin rol.
+                try {
+                keycloak.realm(realm)
+                        .users()
+                        .delete(userId);
+                } catch (Exception ignored) {
+                }
+
+                throw new RuntimeException(
+                        "El usuario fue creado pero no se pudo asignar el rol "
+                                + roleName
+                                + ". El usuario fue eliminado automáticamente.",
+                        e
+                );
+        }
 
         return new AdminUserResponse(
                 userId,
-                request.username(),
-                request.email(),
-                request.firstName(),
-                request.lastName(),
+                request.username().trim(),
+                request.email().trim(),
+                request.firstName().trim(),
+                request.lastName().trim(),
                 true,
-                request.role()
+                roleName
         );
-    }
+        }
 
     public List<AdminUserResponse> listUsers() {
 

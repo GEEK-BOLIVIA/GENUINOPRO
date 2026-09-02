@@ -31,7 +31,7 @@ public class CommercialTaskController {
                 body.getOrDefault("title", "Nueva tarea"),
                 body.getOrDefault("description", ""),
                 body.getOrDefault("priority", "MEDIA"),
-                body.getOrDefault("assignedTo", "admin"),
+                body.get("assignedTo"),
                 body.get("dueAt") != null && !body.get("dueAt").isBlank()
                         ? OffsetDateTime.parse(body.get("dueAt"))
                         : null

@@ -11,6 +11,9 @@ public class LclOperationalCalculationRequest {
     private String shippingAddress;
     private String customerPhone;
 
+    private String originCity;
+    private String destinationCity;
+
     private String productName;
     private Integer quantity;
 
@@ -101,6 +104,21 @@ public class LclOperationalCalculationRequest {
     public Boolean getCustomerPaysUsdCash() { return customerPaysUsdCash; }
     public void setCustomerPaysUsdCash(Boolean customerPaysUsdCash) { this.customerPaysUsdCash = customerPaysUsdCash; }
 
+    public String getOriginCity() {
+        return originCity;
+    }
+
+    public void setOriginCity(String originCity) {
+        this.originCity = originCity;
+    }
+
+    public String getDestinationCity() {
+        return destinationCity;
+    }
+
+    public void setDestinationCity(String destinationCity) {
+        this.destinationCity = destinationCity;
+    }
     public String getCustomerId() {
         return customerId;
     }

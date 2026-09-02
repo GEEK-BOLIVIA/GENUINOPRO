@@ -28,7 +28,7 @@ const PROFORMA_TYPES = [
   {
     key: 'FCL',
     label: 'FCL',
-    description: 'Próximamente',
+    description: 'Operativo',
     createPath: '/fcl/nueva',
     detailBasePath: '/fcl',
     enabled: true,
@@ -36,18 +36,18 @@ const PROFORMA_TYPES = [
   {
     key: 'HBL',
     label: 'HBL',
-    description: 'Próximamente',
+    description: 'Operativo',
     createPath: '/hbl/nueva',
     detailBasePath: '/hbl',
-    enabled: false,
+    enabled: true,
   },
   {
     key: 'AEREO',
-    label: 'Aéreo',
-    description: 'Próximamente',
-    createPath: '/aereo/nueva',
-    detailBasePath: '/aereo',
-    enabled: false,
+    label: 'Aérea',
+    description: 'Operativo',
+    createPath: '/air/nueva',
+    detailBasePath: '/air',
+    enabled: true,
   },
 ];
 
@@ -138,6 +138,39 @@ export default function LclPage({ mode = 'list' }) {
       </div>
     );
   }
+
+  if (mode === 'edit' && id) {
+    return (
+      <div className="space-y-5">
+        <button
+          onClick={() => navigate(`/lcl/${id}`)}
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
+        >
+          ← Volver al detalle
+        </button>
+
+        <section>
+          <p className="text-sm font-medium text-slate-500">
+            Corrección de proforma
+          </p>
+
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+            Editar proforma LCL
+          </h1>
+
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+            Corrige los datos observados y vuelve a enviar la proforma a revisión.
+          </p>
+        </section>
+
+        <LclOperationalSimulator
+          mode="edit"
+          proformaId={id}
+        />
+      </div>
+    );
+  }
+
 
   if (mode === 'detail' && id) {
     return (
@@ -330,13 +363,10 @@ export default function LclPage({ mode = 'list' }) {
                     </td>
 
                     <td className="px-6 py-5">
-                    <span
-                      className={`inline-flex min-w-fit whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold ${
-                        item.statusColor || 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {item.status || item.rawStatus || 'Sin estado'}
-                    </span>
+                      <ProformaStatusBadge
+                        status={item.rawStatus}
+                        label={item.status}
+                      />
                     </td>
 
                     <td className="px-6 py-5 text-right">
@@ -414,4 +444,68 @@ function TypeTab({ active = false, label, description, onClick }) {
       </p>
     </button>
   );
+function ProformaStatusBadge({
+  status,
+  label,
+}) {
+  const normalized =
+    String(status || '')
+      .trim()
+      .toUpperCase();
+
+  const styles = {
+    DRAFT:
+      'border border-amber-200 bg-amber-50 text-amber-700',
+
+    IN_REVIEW:
+      'border border-blue-200 bg-blue-50 text-blue-700',
+
+    APPROVED:
+      'border border-emerald-200 bg-emerald-50 text-emerald-700',
+
+    REJECTED:
+      'border border-red-200 bg-red-50 text-red-700',
+
+    SENT_TO_CLIENT:
+      'border border-violet-200 bg-violet-50 text-violet-700',
+
+    CLIENT_ACCEPTED:
+      'border border-emerald-300 bg-emerald-100 text-emerald-800',
+
+    APPROVED_BY_CUSTOMER:
+      'border border-emerald-300 bg-emerald-100 text-emerald-800',
+
+    CLIENT_REJECTED:
+      'border border-red-300 bg-red-100 text-red-800',
+
+    REJECTED_BY_CUSTOMER:
+      'border border-red-300 bg-red-100 text-red-800',
+  };
+
+  const labels = {
+    DRAFT: 'Borrador',
+    IN_REVIEW: 'En revisión',
+    APPROVED: 'Aprobada',
+    REJECTED: 'Rechazada',
+    SENT_TO_CLIENT: 'Enviada al cliente',
+    CLIENT_ACCEPTED: 'Aprobada cliente',
+    APPROVED_BY_CUSTOMER: 'Aprobada cliente',
+    CLIENT_REJECTED: 'Rechazada cliente',
+    REJECTED_BY_CUSTOMER: 'Rechazada cliente',
+  };
+
+  return (
+    <span
+      className={`inline-flex min-w-fit whitespace-nowrap rounded-full px-3 py-1 text-xs font-black ${
+        styles[normalized] ||
+        'border border-slate-200 bg-slate-100 text-slate-600'
+      }`}
+    >
+      {labels[normalized] ||
+        label ||
+        status ||
+        'Sin estado'}
+    </span>
+  );
+}
 }

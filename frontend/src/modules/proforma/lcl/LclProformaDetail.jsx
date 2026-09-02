@@ -37,9 +37,11 @@ export default function LclProformaDetail({ id }) {
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
+  const [showAttachmentForm, setShowAttachmentForm] = useState(false);
+
   const [clientExists, setClientExists] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('Resumen');
+
 
   const [attachments, setAttachments] = useState([]);
 
@@ -55,6 +57,7 @@ export default function LclProformaDetail({ id }) {
     title: '',
     description: '',
   });
+
 
   const imageFileRef = useRef(null);
 
@@ -256,6 +259,18 @@ export default function LclProformaDetail({ id }) {
     ['ADU', 'ALBO', 'COM', 'VAR'].includes(line.code)
   );
 
+  const lineByCode = (code) =>
+    editableLines.find((line) => line.code === code);
+
+  const fobLine = lineByCode('FOB');
+  const giroLine = lineByCode('GIRO');
+  const maritimeLine = lineByCode('MAR');
+
+  const customsLine = lineByCode('ADU');
+  const alboLine = lineByCode('ALBO');
+  const miscellaneousLine = lineByCode('VAR');
+  const genuinoCommissionLine = lineByCode('COM');
+
   const usdSubtotal = usdLines.reduce(
     (acc, line) => acc + Number(line.total || 0),
     0
@@ -290,6 +305,8 @@ const unitPrice =
             const isReview = data?.status === 'IN_REVIEW';
             const isApproved = data?.status === 'APPROVED';
             const isRejected = data?.status === 'REJECTED';
+
+            const canEditProforma = isDraft || isRejected;
 
             const STATUS_LABELS = {
               DRAFT: 'Borrador',
@@ -402,9 +419,6 @@ const unitPrice =
       title="Proforma LCL"
       subtitle={`Código: ${data.code || data.id}`}
       statusLabel={statusLabel}
-      tabs={['Resumen', 'Cálculo', 'Producto y proveedor', 'Workflow']}
-      activeTab={activeTab}
-      onTabChange={setActiveTab}
       meta={[
         { label: 'Cliente', value: data.customerName },
         { label: 'Producto', value: data.cargoDescription },
@@ -412,10 +426,14 @@ const unitPrice =
         { label: 'Origen', value: `${data.originCity || '-'} - ${data.originCountry || '-'}` },
         { label: 'Destino', value: `${data.destinationCity || '-'} - ${data.destinationCountry || '-'}` },
         {
-          label: 'Fecha',
-          value: data.createdAt
-            ? new Date(data.createdAt).toLocaleString()
+          label: 'Fecha de emisión',
+          value: data.issueDate
+            ? new Date(`${data.issueDate}T00:00:00`).toLocaleDateString('es-BO')
             : '-',
+        },
+        {
+          label: 'Cantidad',
+          value: data.packageCount ?? '-',
         },
       ]}
     />
@@ -432,118 +450,186 @@ const unitPrice =
         </div>
       )}
 
-      {data.status === 'REJECTED' && (
-        <div className="mb-4 rounded-2xl bg-rose-50 p-4 text-sm font-bold text-rose-700">
-          Proforma rechazada. Debe ser corregida o regenerada.
+      {isRejected && (
+        <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-5">
+          <p className="font-black text-rose-700">
+            Proforma rechazada
+          </p>
+
+          <p className="mt-2 text-sm text-rose-700">
+            <strong>Motivo:</strong>{' '}
+            {data.rejectionReason || 'Sin motivo registrado'}
+          </p>
+
+          <p className="mt-2 text-sm text-rose-600">
+            Realiza las correcciones necesarias y vuelve a enviarla a revisión.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/lcl/${data.id}/editar`)}
+            className="mt-4 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-black text-white hover:bg-rose-700"
+          >
+            Editar proforma
+          </button>
         </div>
       )}
 
         
-
-      <div className="mb-6 mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <div className="rounded-2xl bg-slate-100 p-4">
-          <p className="text-xs text-slate-500">
-            T/C comercial
+      <section className="mt-7 rounded-3xl border border-slate-200 bg-white p-6">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-orange-500">
+            Estructura de costos
           </p>
 
-          <p className="text-2xl font-bold">
-            {commercialExchangeRate.toLocaleString(
-              'es-BO',
-              {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 4,
-              }
-            )}
+          <h2 className="mt-1 text-xl font-black text-slate-950">
+            Desglose de la operación
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Distribución referencial de los principales componentes de la importación.
           </p>
         </div>
 
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-            Versión de reglas de cálculo
+        <div className="mt-6">
+          <p className="mb-3 text-xs font-black uppercase tracking-wider text-slate-400">
+            Pagos expresados en dólares
           </p>
 
-          <p className="mt-1 font-black text-slate-900">
-            {data.calculationRuleVersion || 'Versión histórica LCL'}
-          </p>
+          <div className="grid gap-3 md:grid-cols-3">
+            <CostCard
+              label="Valor FOB de la mercadería"
+              value={fobLine?.total}
+              currency="USD"
+            />
+
+            <CostCard
+              label="Comisión giro bancario"
+              value={giroLine?.total}
+              currency="USD"
+            />
+
+            <CostCard
+              label="Transporte internacional"
+              value={maritimeLine?.total}
+              currency="USD"
+            />
+          </div>
         </div>
 
-        <div className="rounded-2xl bg-slate-100 p-4">
-          <p className="text-xs text-slate-500">
-            T/C para impuestos
+        <div className="mt-6">
+          <p className="mb-3 text-xs font-black uppercase tracking-wider text-slate-400">
+            Costos de operación en Bolivia
           </p>
 
-          <p className="text-2xl font-bold">
-            {taxExchangeRate.toLocaleString(
-              'es-BO',
-              {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 4,
-              }
-            )}
-          </p>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <CostCard
+              label="Impuestos aduaneros"
+              value={customsLine?.total}
+              currency="Bs"
+            />
+
+            <CostCard
+              label="Despacho / ALBO"
+              value={alboLine?.total}
+              currency="Bs"
+            />
+
+            <CostCard
+              label="Gastos varios"
+              value={miscellaneousLine?.total}
+              currency="Bs"
+            />
+
+            <CostCard
+              label="Comisión Genuino"
+              value={genuinoCommissionLine?.total}
+              currency="Bs"
+              highlighted
+            />
+          </div>
         </div>
-        <div className="rounded-2xl bg-slate-100 p-4">
-          <p className="text-xs text-slate-500">Total USD</p>
-          <p className="text-2xl font-bold">
-            USD{' '}
-          {usdSubtotal.toLocaleString('es-BO', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-          </p>
-        </div>
+      </section>
 
-        <div className="rounded-2xl bg-slate-100 p-4">
-          <p className="text-xs text-slate-500">Costos de operación en Bolivia</p>
-          <p className="text-2xl font-bold">
-            Bs{' '}
-            {bsSubtotal.toLocaleString('es-BO', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </p>
-        </div>
+        <section className="mt-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 
-        <div className="rounded-2xl bg-emerald-100 p-4">
-          <p className="text-xs text-emerald-700">
-            Inversión referencial total
-          </p>
-
-          <p className="text-2xl font-bold text-emerald-700">
-            Bs{' '}
-            {grandTotal.toLocaleString('es-BO', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </p>
-        </div>
-
-        <div className="rounded-2xl bg-blue-100 p-4">
-          <p className="text-xs text-blue-700">
-            Comisión Genuino
-          </p>
-
-          <p className="text-2xl font-bold text-blue-700">
-            Bs{' '}
-            {Number(data.estimatedProfit || 0).toLocaleString(
-              'es-BO',
-              {
+            <SummaryCard
+              label="Total en dólares"
+              value={`USD ${usdSubtotal.toLocaleString('es-BO', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
-              }
-            )}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-orange-100 p-4">
-          <p className="text-xs text-orange-700">Estado</p>
-          <p className="text-xl font-bold text-orange-700">
-            {statusLabel}
-          </p>
-        </div>
-      </div>
+              })}`}
+              helper="FOB + giro + transporte"
+            />
+
+            <SummaryCard
+              label="Costos en Bolivia"
+              value={`Bs ${bsSubtotal.toLocaleString('es-BO', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`}
+              helper="Aduana + ALBO + gastos + comisión"
+            />
+
+            <SummaryCard
+              label="Inversión total"
+              value={`Bs ${grandTotal.toLocaleString('es-BO', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`}
+              helper="Inversión referencial"
+              featured
+            />
+
+            <SummaryCard
+              label="Precio unitario"
+              value={`Bs ${unitPrice.toLocaleString('es-BO', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`}
+              helper={`${quantity} unidad${quantity === 1 ? '' : 'es'}`}
+            />
+
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-xs text-slate-500">
+
+            <span>
+              <b className="text-slate-700">T/C comercial:</b>{' '}
+              {commercialExchangeRate.toLocaleString('es-BO', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4,
+              })}
+            </span>
+
+            <span>
+              <b className="text-slate-700">T/C impuestos:</b>{' '}
+              {taxExchangeRate.toLocaleString('es-BO', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4,
+              })}
+            </span>
+
+            <span>
+              <b className="text-slate-700">Comisión Genuino:</b>{' '}
+              Bs{' '}
+              {Number(data.estimatedProfit || 0).toLocaleString('es-BO', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+
+            <span>
+              <b className="text-slate-700">Reglas:</b>{' '}
+              {data.calculationRuleVersion || 'Versión histórica LCL'}
+            </span>
+
+          </div>
+        </section>
 
       <div className="space-y-6">
-        {activeTab === 'Cálculo' && (
+        
         <section className="overflow-hidden rounded-2xl border border-slate-200">
           <div className="bg-orange-50 px-4 py-3 text-center text-sm font-black uppercase tracking-widest text-orange-600">
             Expresado en dólares americanos
@@ -563,7 +649,7 @@ const unitPrice =
 
                   <td className="px-4 py-3 text-right font-black">
 
-                  {data.status === 'DRAFT' && line.editable ? (
+                  {canEditProforma && line.editable ? (
                     <input
                       type="number"
                       value={line.unitPrice || 0}
@@ -589,7 +675,7 @@ const unitPrice =
             </tbody>
           </table>
         </section>
-        )}
+        
         <section className="overflow-hidden rounded-2xl border border-slate-200">
           <div className="bg-orange-50 px-4 py-3 text-center text-sm font-black uppercase tracking-widest text-orange-600">
             Expresado en bolivianos
@@ -609,7 +695,7 @@ const unitPrice =
 
                   <td className="px-4 py-3 text-right font-black">
 
-                    {data.status === 'DRAFT' && ['ALBO', 'VAR', 'COM'].includes(line.code) ? (
+                    {canEditProforma && ['ALBO', 'VAR', 'COM'].includes(line.code) ? (
                       <input
                         type="number"
                         value={line.unitPrice || 0}
@@ -638,66 +724,6 @@ const unitPrice =
           </table>
         </section>
 
-        {activeTab === 'Workflow' && (
-          <div className="space-y-4">
-
-            <div className="rounded-2xl border border-slate-200 p-6">
-              <h3 className="mb-4 text-lg font-black">
-                Flujo de aprobación
-              </h3>
-
-              <div className="flex flex-wrap gap-3">
-
-                <button
-                  onClick={handleDownloadPdf}
-                  className="rounded-xl bg-slate-950 px-5 py-3 font-bold text-white"
-                >
-                  Descargar PDF
-                </button>
-
-                {isDraft && (
-                  <>
-                    <button
-                      onClick={saveChanges}
-                      disabled={isSaving}
-                      className="rounded-xl bg-slate-600 px-5 py-3 font-bold text-white"
-                    >
-                      Guardar cambios
-                    </button>
-
-                    <button
-                      onClick={submitForReview}
-                      disabled={isSaving}
-                      className="rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
-                    >
-                      Enviar a revisión
-                    </button>
-                  </>
-                )}
-
-                {canApprove && isReview && (
-                  <>
-                    <button
-                      onClick={approveProforma}
-                      className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white"
-                    >
-                      Aprobar
-                    </button>
-
-                    <button
-                      onClick={rejectProforma}
-                      className="rounded-xl bg-rose-600 px-5 py-3 font-bold text-white"
-                    >
-                      Rechazar
-                    </button>
-                  </>
-                )}
-
-              </div>
-            </div>
-
-          </div>
-        )}
 
         <section className="overflow-hidden rounded-2xl border border-slate-200">
           <div className="bg-slate-950 px-4 py-3 text-center text-sm font-black uppercase tracking-widest text-white">
@@ -743,9 +769,30 @@ const unitPrice =
         </section>
       </div>
 
-      {activeTab === 'Producto y proveedor' && (
-        <section className="rounded-2xl border border-slate-200 p-5">
-          <h3 className="mb-4 text-lg font-black">Producto y proveedor</h3>
+
+<section className="mt-6 rounded-2xl border border-slate-200 bg-white">
+  <div className="flex items-center justify-between gap-4 p-5">
+    <div>
+      <h3 className="text-lg font-black text-slate-900">
+        Producto y proveedor
+      </h3>
+
+      <p className="mt-1 text-sm text-slate-500">
+        Links de referencia, fotografías y documentación del producto.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      onClick={() => setShowAttachmentForm((prev) => !prev)}
+      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+    >
+      {showAttachmentForm ? 'Cerrar' : '+ Agregar'}
+    </button>
+  </div>
+
+  {showAttachmentForm && (
+    <div className="border-t border-slate-100 p-5">
 
           <div className="grid gap-3">
             <input
@@ -836,7 +883,8 @@ const unitPrice =
               </button>
             </div>
           </div>
-
+    </div>
+  )}
           <div className="mt-6 space-y-3">
             {attachments.length === 0 && (
               <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -887,7 +935,7 @@ const unitPrice =
             ))}
           </div>
         </section>
-      )}
+    
 
       <div className="mt-5 flex items-center justify-between gap-4">
         <div className="text-xs text-slate-400">
@@ -895,7 +943,7 @@ const unitPrice =
         </div>
 
         <div className="flex gap-3">
-          {isDraft && (
+          {canEditProforma && (
             <>
               <button
                 onClick={handleDownloadPdf}
@@ -966,6 +1014,8 @@ const unitPrice =
               >
                 Rechazada por cliente
               </button>
+
+
             </>
           )}
 
@@ -1018,6 +1068,47 @@ const unitPrice =
       )}
     </div>
   );
+
+  function SummaryCard({
+    label,
+    value,
+    helper,
+    featured = false,
+  }) {
+    return (
+      <div
+        className={`rounded-2xl border p-5 ${
+          featured
+            ? 'border-orange-200 bg-orange-50'
+            : 'border-slate-200 bg-white'
+        }`}
+      >
+        <p
+          className={`text-xs font-black uppercase tracking-wider ${
+            featured
+              ? 'text-orange-600'
+              : 'text-slate-400'
+          }`}
+        >
+          {label}
+        </p>
+
+        <p
+          className={`mt-2 text-2xl font-black ${
+            featured
+              ? 'text-orange-700'
+              : 'text-slate-950'
+          }`}
+        >
+          {value}
+        </p>
+
+        <p className="mt-1 text-xs text-slate-400">
+          {helper}
+        </p>
+      </div>
+    );
+  }
 
 function ClientAccessModal({ data, onClose, onCreated }) {
   const [form, setForm] = useState({
@@ -1154,4 +1245,48 @@ function ClientField({ label, value, onChange }) {
     </label>
   );
 }
+
+function CostCard({
+  label,
+  value,
+  currency,
+  highlighted = false,
+}) {
+  const amount = Number(value || 0);
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        highlighted
+          ? 'border-orange-200 bg-orange-50'
+          : 'border-slate-200 bg-slate-50/60'
+      }`}
+    >
+      <p
+        className={`text-xs font-bold ${
+          highlighted
+            ? 'text-orange-600'
+            : 'text-slate-500'
+        }`}
+      >
+        {label}
+      </p>
+
+      <p
+        className={`mt-2 text-xl font-black ${
+          highlighted
+            ? 'text-orange-700'
+            : 'text-slate-950'
+        }`}
+      >
+        {currency}{' '}
+        {amount.toLocaleString('es-BO', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
+      </p>
+    </div>
+  );
+}
+
 }

@@ -61,6 +61,8 @@ public class TypedLclProformaDetailResponse {
     private String calculationRuleVersion;
     private String cargoDescription;
 
+    private String rejectionReason;
+
     private BigDecimal freightRate;
     private BigDecimal originCharges;
     private BigDecimal destinationCharges;
@@ -454,5 +456,13 @@ public void setCalculationRuleVersion(String calculationRuleVersion) {
 
     public void setCommercialTerms(String commercialTerms) {
         this.commercialTerms = commercialTerms;
+    }
+
+    public String getRejectionReason() {
+    return rejectionReason;
+    }
+
+    public void setRejectionReason(String rejectionReason) {
+        this.rejectionReason = rejectionReason;
     }
 }

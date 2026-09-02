@@ -37,7 +37,15 @@ export async function getFclProformas() {
 }
 
 export async function getFclProformaById(id) {
-  return apiFetch(`/typed-proformas/fcl/${id}`);
+  const response = await apiFetch(
+    `/typed-proformas/fcl/${id}`
+  );
+
+  return {
+    ...(response?.proforma || {}),
+    rejectionReason:
+      response?.rejectionReason || null,
+  };
 }
 
 export async function createFclProforma(payload) {
@@ -103,10 +111,19 @@ export async function approveFclProforma(id) {
   });
 }
 
-export async function rejectFclProforma(id) {
-  return apiFetch(`/typed-proformas/fcl/${id}/reject`, {
-    method: 'POST',
-  });
+export async function rejectFclProforma(
+  id,
+  reason
+) {
+  return apiFetch(
+    `/typed-proformas/fcl/${id}/reject`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        reason,
+      }),
+    }
+  );
 }
 
 export async function approveFclByCustomer(id) {

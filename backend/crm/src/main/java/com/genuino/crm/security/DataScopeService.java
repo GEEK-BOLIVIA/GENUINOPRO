@@ -2,6 +2,7 @@ package com.genuino.crm.security;
 
 import org.springframework.stereotype.Service;
 
+
 @Service
 public class DataScopeService {
 

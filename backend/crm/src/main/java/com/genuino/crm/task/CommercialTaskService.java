@@ -1,24 +1,31 @@
 package com.genuino.crm.task;
 
 import com.genuino.crm.audit.AuditService;
+import com.genuino.crm.security.DataScopeService;
+
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.genuino.crm.security.DataScopeService;
+
 @Service
 public class CommercialTaskService {
 
     private final CommercialTaskRepository repository;
     private final AuditService auditService;
+    private final DataScopeService dataScopeService;
 
     public CommercialTaskService(
             CommercialTaskRepository repository,
-            AuditService auditService
+            AuditService auditService,
+            DataScopeService dataScopeService
     ) {
         this.repository = repository;
         this.auditService = auditService;
+        this.dataScopeService = dataScopeService;
     }
 
     public List<CommercialTask> getTasksByLead(String leadId) {
@@ -26,7 +33,14 @@ public class CommercialTaskService {
     }
 
     public List<CommercialTask> getTasksBySeller(String assignedTo) {
-        return repository.findByAssignedToOrderByDueAtAsc(assignedTo);
+
+        if (dataScopeService.canSeeEverything()) {
+            return repository.findByAssignedToOrderByDueAtAsc(assignedTo);
+        }
+
+        return repository.findByAssignedToOrderByDueAtAsc(
+                dataScopeService.currentSeller()
+        );
     }
 
     public CommercialTask createTask(
@@ -43,14 +57,30 @@ public class CommercialTaskService {
         task.title = title;
         task.description = description;
         task.priority = priority;
-        task.assignedTo = assignedTo;
+
+        if (dataScopeService.canSeeEverything()) {
+            task.assignedTo =
+                    assignedTo != null && !assignedTo.isBlank()
+                            ? assignedTo
+                            : dataScopeService.currentSeller();
+        } else {
+            task.assignedTo = dataScopeService.currentSeller();
+        }
+
         task.dueAt = dueAt;
 
         return saveAndAuditCreated(task);
     }
 
     public List<CommercialTask> getAllTasks() {
-        return repository.findAll();
+
+        if (dataScopeService.canSeeEverything()) {
+            return repository.findAll();
+        }
+
+        return repository.findByAssignedToOrderByDueAtAsc(
+                dataScopeService.currentSeller()
+        );
     }
 
     public CommercialTask completeTask(UUID taskId) {

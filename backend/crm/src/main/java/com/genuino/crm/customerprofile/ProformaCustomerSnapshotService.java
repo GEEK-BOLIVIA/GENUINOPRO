@@ -147,11 +147,6 @@ public class ProformaCustomerSnapshotService {
             );
 
             require(
-                    profile.getCityCode(),
-                    "Falta la ciudad del cliente."
-            );
-
-            require(
                     profile.getMobilePhone(),
                     "Falta el celular del cliente."
             );

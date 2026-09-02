@@ -35,6 +35,8 @@ export default function FclProformaDetail({ id }) {
   const [clientExists, setClientExists] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
 
+  const [showAttachmentForm, setShowAttachmentForm] = useState(false);
+
   const [attachments, setAttachments] = useState([]);
   const [newAttachment, setNewAttachment] = useState({
     attachmentType: 'ALIBABA_LINK',
@@ -107,15 +109,29 @@ export default function FclProformaDetail({ id }) {
       updated = await approveFclProforma(item.id);
     }
 
-    if (action === 'reject') {
-      updated = await rejectFclProforma(item.id);
+  if (action === 'reject') {
+    const reason = window.prompt(
+      'Motivo del rechazo de la proforma:'
+    );
+
+    if (!reason || !reason.trim()) {
+      return;
     }
+
+    updated = await rejectFclProforma(
+      item.id,
+      reason.trim()
+    );
+  }
 
     if (action === 'approveCustomer') {
     updated = await approveFclByCustomer(item.id);
     }
 
-    setItem(updated);
+  const refreshed =
+    await getFclProformaById(item.id);
+
+  setItem(refreshed);
   } catch (error) {
     console.error(error);
     alert('No se pudo actualizar el estado de la proforma FCL.');
@@ -142,6 +158,12 @@ async function saveDraftChanges() {
 
 
 const isDraft = item.status === 'DRAFT';
+
+const isRejected =
+  item.status === 'REJECTED';
+
+const canEditProforma =
+  isDraft || isRejected;
 
 const totalUsdComponents =
   Number(item.subtotalUsd || 0);
@@ -272,24 +294,44 @@ async function handleDeleteAttachment(attachmentId) {
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-4">
-          <Info label="Cliente" value={item.customerName} editable={isDraft} onChange={(v) => updateField('customerName', v)} />
-          <Info label="Teléfono" value={item.customerPhone} editable={isDraft} onChange={(v) => updateField('customerPhone', v)} />
-          <Info label="Asesor" value={item.sellerName} editable={isDraft} onChange={(v) => updateField('sellerName', v)} />
+          <Info label="Cliente" value={item.customerName} editable={canEditProforma} onChange={(v) => updateField('customerName', v)} />
+          <Info label="Teléfono" value={item.customerPhone} editable={canEditProforma} onChange={(v) => updateField('customerPhone', v)} />
+          <Info label="Asesor" value={item.sellerName} editable={canEditProforma} onChange={(v) => updateField('sellerName', v)} />
           <Info label="Fecha" value={formatDate(item.createdAt)} />
         </div>
+
+        
       </section>
+
+    {isRejected && (
+      <section className="rounded-2xl border border-rose-200 bg-rose-50 p-5">
+        <p className="font-black text-rose-700">
+          Proforma rechazada
+        </p>
+
+        <p className="mt-2 text-sm text-rose-700">
+          <strong>Motivo:</strong>{' '}
+          {item.rejectionReason ||
+            'Sin motivo registrado'}
+        </p>
+
+        <p className="mt-2 text-sm text-rose-600">
+          Corrige los datos observados y vuelve a enviar la proforma a revisión.
+        </p>
+      </section>
+    )}
 
       <section className="grid gap-6 xl:grid-cols-2">
         <Card title="Datos de la operación" icon={FileText}>
           <div className="grid gap-3 md:grid-cols-2">
-            <Info label="Proveedor" value={item.supplierName} editable={isDraft} onChange={(v) => updateField('supplierName', v)} />
-            <Info label="Teléfono proveedor" value={item.supplierPhone} editable={isDraft} onChange={(v) => updateField('supplierPhone', v)} />
-            <Info label="Origen" value={item.originCity} editable={isDraft} onChange={(v) => updateField('originCity', v)} />
-            <Info label="Puerto origen" value={item.originPort} editable={isDraft} onChange={(v) => updateField('originPort', v)} />
-            <Info label="Destino" value={item.destinationCity} editable={isDraft} onChange={(v) => updateField('destinationCity', v)} />
-            <Info label="Producto" value={item.product} editable={isDraft} onChange={(v) => updateField('product', v)} />
-            <Info label="Contenedor" value={item.containerType} editable={isDraft} onChange={(v) => updateField('containerType', v)} />
-            <Info label="Cantidad" value={item.containerCount} editable={isDraft} type="number" onChange={(v) => updateField('containerCount', v)} />
+            <Info label="Proveedor" value={item.supplierName} editable={canEditProforma} onChange={(v) => updateField('supplierName', v)} />
+            <Info label="Teléfono proveedor" value={item.supplierPhone} editable={canEditProforma} onChange={(v) => updateField('supplierPhone', v)} />
+            <Info label="Origen" value={item.originCity} editable={canEditProforma} onChange={(v) => updateField('originCity', v)} />
+            <Info label="Puerto origen" value={item.originPort} editable={canEditProforma} onChange={(v) => updateField('originPort', v)} />
+            <Info label="Destino" value={item.destinationCity} editable={canEditProforma} onChange={(v) => updateField('destinationCity', v)} />
+            <Info label="Producto" value={item.product} editable={canEditProforma} onChange={(v) => updateField('product', v)} />
+            <Info label="Contenedor" value={item.containerType} editable={canEditProforma} onChange={(v) => updateField('containerType', v)} />
+            <Info label="Cantidad" value={item.containerCount} editable={canEditProforma} type="number" onChange={(v) => updateField('containerCount', v)} />
           </div>
         </Card>
 
@@ -317,7 +359,7 @@ async function handleDeleteAttachment(attachmentId) {
             <Info label="Seguro USD calculado" value={formatMoney(item.insuranceUsdCalculated, 'USD')} />
             <Info label="CIF Bs" value={formatMoney(item.cifBob)} />
 
-            <Info label="Transporte terrestre Bs" value={item.inlandFreightBob} editable={isDraft} type="number" onChange={(v) => updateField('inlandFreightBob', v)} />
+            <Info label="Transporte terrestre Bs" value={item.inlandFreightBob} editable={canEditProforma} type="number" onChange={(v) => updateField('inlandFreightBob', v)} />
             <Info
               label="T/C comercial"
               value={item.exchangeRateUsed || item.exchangeRate}
@@ -339,7 +381,7 @@ async function handleDeleteAttachment(attachmentId) {
             <Info
               label="Otros gastos Bs"
               value={item.miscellaneousExpensesBob}
-              editable={isDraft}
+              editable={canEditProforma}
               type="number"
               onChange={(v) =>
                 updateField(
@@ -353,9 +395,9 @@ async function handleDeleteAttachment(attachmentId) {
               label="Versión de reglas"
               value={item.calculationRuleVersion}
             />
-            <Info label="GA %" value={item.gaPercent} editable={isDraft} type="number" onChange={(v) => updateField('gaPercent', v)} />
-            <Info label="IVA %" value={item.ivaPercent} editable={isDraft} type="number" onChange={(v) => updateField('ivaPercent', v)} />
-            <Info label="ICE %" value={item.icePercent} editable={isDraft} type="number" onChange={(v) => updateField('icePercent', v)} />
+            <Info label="GA %" value={item.gaPercent} editable={canEditProforma} type="number" onChange={(v) => updateField('gaPercent', v)} />
+            <Info label="IVA %" value={item.ivaPercent} editable={canEditProforma} type="number" onChange={(v) => updateField('ivaPercent', v)} />
+            <Info label="ICE %" value={item.icePercent} editable={canEditProforma} type="number" onChange={(v) => updateField('icePercent', v)} />
 
             <Info label="Impuestos Aduana Bs" value={formatMoney(item.customsTaxesBob)} />
             <Info label="ALBO / despacho Bs" value={formatMoney(item.alboBob)} />
@@ -508,10 +550,29 @@ async function handleDeleteAttachment(attachmentId) {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-black text-slate-900">
-            Producto y proveedor
-          </h2>
+<section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+  <div className="flex items-center justify-between gap-4 p-6">
+    <div>
+      <h2 className="text-xl font-black text-slate-900">
+        Producto y proveedor
+      </h2>
+
+      <p className="mt-1 text-sm text-slate-500">
+        Links de referencia, fotografías y documentación del producto.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      onClick={() => setShowAttachmentForm((prev) => !prev)}
+      className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+    >
+      {showAttachmentForm ? 'Cerrar' : '+ Agregar'}
+    </button>
+  </div>
+
+  {showAttachmentForm && (
+    <div className="border-t border-slate-100 p-6">
 
           <div className="mt-5 grid gap-3">
             <input
@@ -623,6 +684,8 @@ async function handleDeleteAttachment(attachmentId) {
               </button>
             </div>
           </div>
+              </div>
+  )}
           <div className="mt-6 space-y-3">
             {attachments.length === 0 && (
               <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -685,7 +748,7 @@ async function handleDeleteAttachment(attachmentId) {
             Descargar PDF
             </button>
 
-              {item.status === 'DRAFT' && (
+              {canEditProforma && (
                 <>
                   <button
                     onClick={saveDraftChanges}

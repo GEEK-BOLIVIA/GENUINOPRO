@@ -32,8 +32,8 @@ import {
 
 
 const statusLabels = {
-  NEW: 'Contacto',
-  CONTACTED: 'Calificado',
+  NEW: 'Nuevo Contacto',
+  CONTACTED: 'Contactado',
   NEGOTIATION: 'Requiere cotización',
   QUOTED: 'Proforma enviada',
   WON: 'Cliente',
@@ -359,7 +359,7 @@ async function handleSaveCustomerProfile(payload) {
       LCL: `/lcl/nueva?${params.toString()}`,
       FCL: `/fcl/nueva?${params.toString()}`,
       HBL: `/hbl/nueva?${params.toString()}`,
-      AEREO: `/aereo/nueva?${params.toString()}`,
+      AEREO: `/air/nueva?${params.toString()}`,
       CUSTOM: `/proformas/nueva?${params.toString()}`,
     };
 
@@ -626,7 +626,23 @@ const selectedRequirementDate = selectedRequirement
         </div>
 
         <div className="mt-8 grid gap-5 md:grid-cols-3">
-          <InfoCard icon={<Building2 size={18} />} title="Empresa" value={currentLead.company || currentLead.fullName || '-'} />
+          <InfoCard
+              icon={
+                customerProfile?.customerType === 'COMPANY'
+                  ? <Building2 size={18} />
+                  : <User size={18} />
+              }
+              title={
+                customerProfile?.customerType === 'COMPANY'
+                  ? 'Empresa'
+                  : 'Persona natural'
+              }
+              value={
+                customerProfile?.customerType === 'COMPANY'
+                  ? customerProfile?.legalName || currentLead.company || '-'
+                  : customerProfile?.fullName || currentLead.fullName || currentLead.contact || '-'
+              }
+            />
           <InfoCard icon={<User size={18} />} title="Contacto" value={currentLead.contact || currentLead.fullName || '-'} />
           <InfoCard icon={<Phone size={18} />} title="Teléfono" value={currentLead.phone || '-'} />
           <InfoCard icon={<BadgeCheck size={18} />} title="Estado comercial" value={statusLabels[currentLead.status] || currentLead.status || summary?.opportunity?.stage || '-'} />
@@ -797,7 +813,7 @@ const selectedRequirementDate = selectedRequirement
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[520px]">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 lg:min-w-[650px]">
                   <button
                     onClick={() => handleCreateProforma('LCL')}
                     className="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white hover:bg-orange-600"
@@ -810,6 +826,13 @@ const selectedRequirementDate = selectedRequirement
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-400"
                   >
                     FCL
+                  </button>
+
+                  <button
+                    onClick={() => handleCreateProforma('HBL')}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-600 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600"
+                  >
+                    HBL
                   </button>
 
                   <button
@@ -1043,9 +1066,10 @@ const selectedRequirementDate = selectedRequirement
                             {proforma.type || 'LCL'}
                           </span>
 
-                          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                            {statusLabel}
-                          </span>
+                          <ProformaStatusBadge
+                            status={proforma.status}
+                            label={statusLabel}
+                          />
                         </div>
 
                         <p className="mt-3 text-base font-black text-slate-900">
@@ -1095,7 +1119,7 @@ const selectedRequirementDate = selectedRequirement
                             LCL: `/lcl/${proforma.id}`,
                             FCL: `/fcl/${proforma.id}`,
                             HBL: `/hbl/${proforma.id}`,
-                            AEREO: `/aereo/${proforma.id}`,
+                            AEREO: `/air/${proforma.id}`,
                           };
 
                           navigate(detailRoutes[proforma.type] || `/lcl/${proforma.id}`);
@@ -1299,12 +1323,12 @@ function LeadCustomerProfilePanel({
     ) {
       if (
         !form.fullName.trim() ||
-        !form.cityCode ||
+    
         !form.mobilePhone.trim()
       ) {
-        alert(
-          'Completa nombre, ciudad y celular.'
-        );
+          alert(
+            'Completa nombre y celular.'
+          );
         return;
       }
 
@@ -1324,7 +1348,7 @@ function LeadCustomerProfilePanel({
         !form.legalName.trim() ||
         !form.taxId.trim() ||
         !form.companyPhone.trim() ||
-        !form.cityCode ||
+      
         !form.addressText.trim() ||
         !form.legalRepresentativeName.trim()
       ) {
@@ -1410,7 +1434,7 @@ function LeadCustomerProfilePanel({
                     ? `${profile.cityName} — ${
                         profile.departmentName || ''
                       }`
-                    : '-'
+                    : 'Sin información'
                 }
               />
 
@@ -1446,7 +1470,7 @@ function LeadCustomerProfilePanel({
                     ? `${profile.cityName} — ${
                         profile.departmentName || ''
                       }`
-                    : '-'
+                    : 'Sin información'
                 }
               />
 
