@@ -19,7 +19,7 @@ export function deleteProformaAttachment(proformaId, attachmentId) {
 
 export async function uploadProformaAttachmentImage(proformaId, formData) {
   const response = await fetch(
-    `http://localhost:8081/api/proformas/${proformaId}/attachments/image`,
+    `/api/proformas/${proformaId}/attachments/image`,
     {
       method: 'POST',
       body: formData,

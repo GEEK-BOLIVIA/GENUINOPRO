@@ -903,7 +903,7 @@ const unitPrice =
                   {attachment.attachmentType === 'PRODUCT_IMAGE' ||
                   attachment.attachmentType === 'SUPPLIER_IMAGE' ? (
                     <img
-                      src={`http://localhost:8081${attachment.attachmentUrl}`}
+                      src={`${attachment.attachmentUrl}`}
                       alt={attachment.title || 'Imagen adjunta'}
                       className="mt-3 h-40 w-40 rounded-2xl border border-slate-200 object-cover"
                     />

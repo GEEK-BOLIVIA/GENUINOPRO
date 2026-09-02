@@ -152,7 +152,7 @@ export async function downloadHblPdf(id) {
   const token = getApiToken();
 
   const response = await fetch(
-    `http://localhost:8081/api/typed-proformas/hbl/${id}/pdf`,
+    `/api/typed-proformas/hbl/${id}/pdf`,
     {
       headers: {
         Authorization: `Bearer ${token}`,

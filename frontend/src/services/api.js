@@ -6,7 +6,7 @@ export {
 
 export async function downloadLclPdf(id, token) {
   const response = await fetch(
-    `http://localhost:8081/api/typed-proformas/lcl/${id}/pdf`,
+    `/api/typed-proformas/lcl/${id}/pdf`,
     {
       headers: {
         Authorization: `Bearer ${token}`,

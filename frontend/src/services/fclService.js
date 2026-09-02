@@ -73,7 +73,7 @@ export async function downloadFclPdf(id) {
   const token = getApiToken();
 
   const response = await fetch(
-    `http://localhost:8081/api/typed-proformas/fcl/${id}/pdf`,
+    `/api/typed-proformas/fcl/${id}/pdf`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
