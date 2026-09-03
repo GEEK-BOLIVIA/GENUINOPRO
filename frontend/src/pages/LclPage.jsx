@@ -444,6 +444,8 @@ function TypeTab({ active = false, label, description, onClick }) {
       </p>
     </button>
   );
+}
+
 function ProformaStatusBadge({
   status,
   label,
@@ -507,5 +509,4 @@ function ProformaStatusBadge({
         'Sin estado'}
     </span>
   );
-}
 }

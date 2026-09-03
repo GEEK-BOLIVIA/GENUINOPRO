@@ -121,6 +121,31 @@ function getProformaTotal(proforma) {
   );
 }
 
+function ProformaStatusBadge({ status, label }) {
+  const styles = {
+    DRAFT: 'bg-amber-100 text-amber-700',
+    IN_REVIEW: 'bg-blue-100 text-blue-700',
+    APPROVED: 'bg-emerald-100 text-emerald-700',
+    REJECTED: 'bg-red-100 text-red-700',
+    SENT_TO_CLIENT: 'bg-violet-100 text-violet-700',
+    CLIENT_ACCEPTED: 'bg-emerald-100 text-emerald-700',
+    CLIENT_REJECTED: 'bg-red-100 text-red-700',
+    APPROVED_BY_CUSTOMER: 'bg-emerald-100 text-emerald-700',
+    REJECTED_BY_CUSTOMER: 'bg-red-100 text-red-700',
+  };
+
+  const className =
+    styles[status] || 'bg-slate-100 text-slate-700';
+
+  return (
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-bold ${className}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 const timelineLabels = {
   CREATE: 'Contacto creado',
   CHANGE_STAGE: 'Cambio de etapa comercial',
