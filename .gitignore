@@ -28,6 +28,8 @@ Thumbs.db
 # Variables y credenciales
 .env
 .env.*
+# Configuración Vite de producción (sin secretos)
+!frontend/.env.production
 application-prod.properties
 application-local.properties
 
