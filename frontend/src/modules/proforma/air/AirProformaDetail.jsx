@@ -9,6 +9,7 @@ import {
 
 import {
   approveAirProforma,
+  downloadAirProformaPdf,
   getAirProformaById,
   rejectAirProforma,
   submitAirForReview,
@@ -143,6 +144,38 @@ export default function AirProformaDetail({
       setActionLoading(false);
     }
   }
+
+async function handlePdf() {
+  setActionLoading(true);
+  setError('');
+
+  try {
+    const blob =
+      await downloadAirProformaPdf(id);
+
+    const url =
+      window.URL.createObjectURL(blob);
+
+    window.open(
+      url,
+      '_blank',
+      'noopener,noreferrer'
+    );
+
+    window.setTimeout(() => {
+      window.URL.revokeObjectURL(url);
+    }, 60000);
+  } catch (err) {
+    console.error(err);
+
+    setError(
+      err?.message ||
+      'No se pudo generar el PDF de la proforma.'
+    );
+  } finally {
+    setActionLoading(false);
+  }
+}
 
   if (loading) {
     return (
@@ -718,6 +751,14 @@ export default function AirProformaDetail({
 
         <div className="flex flex-wrap justify-end gap-3">
 
+        <button
+        type="button"
+        disabled={actionLoading}
+        onClick={handlePdf}
+        className="rounded-xl border border-orange-300 bg-orange-50 px-5 py-3 text-sm font-black text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+        >
+        Descargar PDF
+        </button>
           {canEdit && (
             <button
               type="button"

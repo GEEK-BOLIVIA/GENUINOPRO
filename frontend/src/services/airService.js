@@ -121,6 +121,35 @@ export async function rejectAirProforma(
   );
 }
 
+export async function downloadAirProformaPdf(id) {
+  const token = getApiToken();
+
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || '/api';
+
+  const response = await fetch(
+    `${API_BASE_URL}/typed-proformas/air/${id}/pdf`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const message =
+      await response.text();
+
+    throw new Error(
+      message ||
+      `No se pudo generar el PDF (${response.status})`
+    );
+  }
+
+  return await response.blob();
+}
+
 function normalizeAirStatus(status) {
   const map = {
     DRAFT: 'Borrador',

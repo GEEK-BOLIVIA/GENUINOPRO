@@ -24,22 +24,28 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.genuino.crm.quoting.air.pdf.TypedAirPdfService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+
 @RestController
 @RequestMapping("/api/typed-proformas/air")
 public class AirCalculationController {
 
     private final AirCalculationService calculationService;
     private final TypedAirProformaService proformaService;
+    private final TypedAirPdfService typedAirPdfService;
+    
 
     public AirCalculationController(
             AirCalculationService calculationService,
-            TypedAirProformaService proformaService
+            TypedAirProformaService proformaService,
+            TypedAirPdfService typedAirPdfService
     ) {
-        this.calculationService =
-                calculationService;
-
-        this.proformaService =
-                proformaService;
+        this.calculationService = calculationService;
+        this.proformaService = proformaService;
+        this.typedAirPdfService = typedAirPdfService;
     }
 
     @PreAuthorize(
@@ -161,4 +167,26 @@ public class AirCalculationController {
                 )
         );
     }
+
+@PreAuthorize(
+        "hasAnyRole('VENDEDOR','ADMIN','OWNER')"
+)
+@GetMapping("/{id}/pdf")
+public ResponseEntity<byte[]> pdf(
+        @PathVariable UUID id
+) {
+
+    var detail = proformaService.getById(id);
+
+    byte[] pdf =
+            typedAirPdfService.generate(detail);
+
+    return ResponseEntity.ok()
+            .header(
+                    HttpHeaders.CONTENT_DISPOSITION,
+                    "inline; filename=\"proforma-air-" + id + ".pdf\""
+            )
+            .contentType(MediaType.APPLICATION_PDF)
+            .body(pdf);
+}
 }
