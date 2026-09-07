@@ -8,6 +8,8 @@ import {
   Trash2,
   Settings,
   RotateCcw,
+  SlidersHorizontal,
+  TableProperties,
 } from 'lucide-react';
 
 import {
@@ -16,9 +18,12 @@ import {
   updateProformaRate,
   deleteProformaRate,
   activateProformaRate,
+  getCalculationParameters,
+  createCalculationParameter,
+  updateCalculationParameter,
+  deleteCalculationParameter,
+  activateCalculationParameter,
 } from '../services/parametersApi';
-
-
 
 const PROFORMA_TYPES = [
   { key: 'LCL', label: 'LCL', description: 'Carga consolidada por CBM o TON' },
@@ -27,15 +32,16 @@ const PROFORMA_TYPES = [
   { key: 'AEREO', label: 'AÉREO', description: 'Peso real, volumétrico, AWB y handling' },
 ];
 
-const RATE_OPTIONS = {
-  LCL: [
-    'CBM',
-    'TON',
-    'GIRO_PERCENT',
-    'ALBO',
-    'COMISION_GENUINO',
-  ],
+const CALCULATION_SCOPES = [
+  { key: 'GENERAL', label: 'GENERAL', description: 'Parámetros comunes de liquidación' },
+  { key: 'LCL', label: 'LCL', description: 'Parámetros específicos LCL' },
+  { key: 'FCL', label: 'FCL', description: 'Parámetros específicos FCL' },
+  { key: 'HBL', label: 'HBL', description: 'Parámetros específicos HBL' },
+  { key: 'AEREO', label: 'AÉREO', description: 'Parámetros específicos Aéreo' },
+];
 
+const RATE_OPTIONS = {
+  LCL: ['CBM', 'TON', 'GIRO_PERCENT', 'ALBO', 'COMISION_GENUINO', 'COMISION_TRANSFERENCIA'],
   FCL: [
     'FCL20',
     'FCL40',
@@ -45,25 +51,23 @@ const RATE_OPTIONS = {
     'DESPACHANTE',
     'GASTOS_EXTRA_NIT',
     'COMISION_GENUINO',
-    'COMISION_GIRO_CHILE',
+    'COMISION_TRANSFERENCIA',
     'GIRO_ALIBABA_PERCENT',
   ],
-
-  HBL: [
-    'EMISION_HBL',
-    'HANDLING',
-    'DOCUMENTACION',
-  ],
-
-  AEREO: [
-    'PESO_REAL',
-    'PESO_VOLUMETRICO',
-    'AWB',
-    'HANDLING',
-  ],
+  HBL: ['EMISION_HBL', 'HANDLING', 'DOCUMENTACION'],
+  AEREO: ['PESO_REAL', 'PESO_VOLUMETRICO', 'AWB', 'HANDLING'],
 };
 
-const emptyForm = {
+const UNIT_OPTIONS = [
+  { key: 'PERCENT', label: 'Porcentaje (%)' },
+  { key: 'RATE', label: 'Tipo de cambio / tasa' },
+  { key: 'USD', label: 'USD' },
+  { key: 'BOB', label: 'BOB' },
+  { key: 'BOOLEAN', label: 'Sí / No' },
+  { key: 'TEXT', label: 'Texto' },
+];
+
+const emptyRateForm = {
   id: null,
   proformaType: 'LCL',
   rateType: 'CBM',
@@ -74,50 +78,114 @@ const emptyForm = {
   active: true,
 };
 
+const emptyCalculationForm = {
+  id: null,
+  scope: 'GENERAL',
+  code: '',
+  numericValue: '',
+  textValue: '',
+  unit: 'PERCENT',
+  version: 'LIQ_2026_09',
+  active: true,
+  description: '',
+};
+
+function formatCalculationValue(parameter) {
+  if (parameter.unit === 'PERCENT') {
+    const value = Number(parameter.numericValue ?? 0) * 100;
+    return `${value.toLocaleString('es-BO', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 4,
+    })} %`;
+  }
+
+  if (parameter.unit === 'BOOLEAN') {
+    return String(parameter.textValue || '').toLowerCase() === 'true' ? 'Sí' : 'No';
+  }
+
+  if (parameter.unit === 'TEXT') return parameter.textValue || '—';
+  if (parameter.numericValue === null || parameter.numericValue === undefined) return '—';
+
+  return Number(parameter.numericValue).toLocaleString('es-BO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
+  });
+}
+
 export default function ParametersPage() {
+  const [section, setSection] = useState('RATES');
+
   const [activeType, setActiveType] = useState('LCL');
   const [rates, setRates] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [loadingRates, setLoadingRates] = useState(false);
+  const [savingRate, setSavingRate] = useState(false);
+  const [rateModalOpen, setRateModalOpen] = useState(false);
+  const [rateForm, setRateForm] = useState(emptyRateForm);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [activeScope, setActiveScope] = useState('GENERAL');
+  const [parameters, setParameters] = useState([]);
+  const [loadingParameters, setLoadingParameters] = useState(false);
+  const [savingParameter, setSavingParameter] = useState(false);
+  const [parameterModalOpen, setParameterModalOpen] = useState(false);
+  const [parameterForm, setParameterForm] = useState(emptyCalculationForm);
+
+  const [includeInactive, setIncludeInactive] = useState(false);
 
   const activeTypeInfo = useMemo(
     () => PROFORMA_TYPES.find((item) => item.key === activeType),
     [activeType]
   );
 
-  const [includeInactive, setIncludeInactive] = useState(false);
+  const activeScopeInfo = useMemo(
+    () => CALCULATION_SCOPES.find((item) => item.key === activeScope),
+    [activeScope]
+  );
 
   async function loadRates(type = activeType) {
     try {
-      setLoading(true);
+      setLoadingRates(true);
       const data = await getProformaRates(type, includeInactive);
       setRates(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error(error);
       alert('No se pudieron cargar las tarifas.');
     } finally {
-      setLoading(false);
+      setLoadingRates(false);
+    }
+  }
+
+  async function loadParameters(scope = activeScope) {
+    try {
+      setLoadingParameters(true);
+      const data = await getCalculationParameters(scope, includeInactive);
+      setParameters(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error(error);
+      alert('No se pudieron cargar los parámetros de cálculo.');
+    } finally {
+      setLoadingParameters(false);
     }
   }
 
   useEffect(() => {
-    loadRates(activeType);
-  }, [activeType, includeInactive]);
+    if (section === 'RATES') loadRates(activeType);
+  }, [activeType, includeInactive, section]);
 
-  function openCreateModal() {
-    setForm({
-      ...emptyForm,
+  useEffect(() => {
+    if (section === 'CALCULATION') loadParameters(activeScope);
+  }, [activeScope, includeInactive, section]);
+
+  function openCreateRateModal() {
+    setRateForm({
+      ...emptyRateForm,
       proformaType: activeType,
       rateType: RATE_OPTIONS[activeType]?.[0] || '',
     });
-    setModalOpen(true);
+    setRateModalOpen(true);
   }
 
-  function openEditModal(rate) {
-    setForm({
+  function openEditRateModal(rate) {
+    setRateForm({
       id: rate.id,
       proformaType: rate.proformaType,
       rateType: rate.rateType,
@@ -127,11 +195,11 @@ export default function ParametersPage() {
       currency: rate.currency || 'USD',
       active: rate.active ?? true,
     });
-    setModalOpen(true);
+    setRateModalOpen(true);
   }
 
-  function updateForm(field, value) {
-    setForm((prev) => ({
+  function updateRateForm(field, value) {
+    setRateForm((prev) => ({
       ...prev,
       [field]: value,
       ...(field === 'proformaType'
@@ -140,55 +208,48 @@ export default function ParametersPage() {
     }));
   }
 
-  function normalizePayload() {
+  function normalizeRatePayload() {
     return {
-      proformaType: form.proformaType,
-      rateType: form.rateType,
-      rangeFrom: form.rangeFrom === '' ? null : Number(form.rangeFrom),
-      rangeTo: form.rangeTo === '' ? null : Number(form.rangeTo),
-      price: form.price === '' ? null : Number(form.price),
-      currency: form.currency || 'USD',
-      active: Boolean(form.active),
+      proformaType: rateForm.proformaType,
+      rateType: rateForm.rateType,
+      rangeFrom: rateForm.rangeFrom === '' ? null : Number(rateForm.rangeFrom),
+      rangeTo: rateForm.rangeTo === '' ? null : Number(rateForm.rangeTo),
+      price: rateForm.price === '' ? null : Number(rateForm.price),
+      currency: rateForm.currency || 'USD',
+      active: Boolean(rateForm.active),
     };
   }
 
-  async function handleSubmit(event) {
+  async function handleRateSubmit(event) {
     event.preventDefault();
 
-    if (!form.proformaType || !form.rateType) {
+    if (!rateForm.proformaType || !rateForm.rateType) {
       alert('El tipo de proforma y el tipo de tarifa son obligatorios.');
       return;
     }
 
-    if (form.price === '' || Number(form.price) < 0) {
+    if (rateForm.price === '' || Number(rateForm.price) < 0) {
       alert('El precio debe ser válido.');
       return;
     }
 
     try {
-      setSaving(true);
-      const payload = normalizePayload();
-
-      if (form.id) {
-        await updateProformaRate(form.id, payload);
-      } else {
-        await createProformaRate(payload);
-      }
-
-      setModalOpen(false);
+      setSavingRate(true);
+      const payload = normalizeRatePayload();
+      if (rateForm.id) await updateProformaRate(rateForm.id, payload);
+      else await createProformaRate(payload);
+      setRateModalOpen(false);
       await loadRates(activeType);
     } catch (error) {
       console.error(error);
-      alert('No se pudo guardar la tarifa.');
+      alert(error?.message || 'No se pudo guardar la tarifa.');
     } finally {
-      setSaving(false);
+      setSavingRate(false);
     }
   }
 
-  async function handleDeactivate(rate) {
-    const ok = confirm(`¿Desactivar la tarifa ${rate.rateType}?`);
-    if (!ok) return;
-
+  async function handleDeactivateRate(rate) {
+    if (!confirm(`¿Desactivar la tarifa ${rate.rateType}?`)) return;
     try {
       await deleteProformaRate(rate.id);
       await loadRates(activeType);
@@ -198,7 +259,7 @@ export default function ParametersPage() {
     }
   }
 
-  async function handleActivate(rate) {
+  async function handleActivateRate(rate) {
     try {
       await activateProformaRate(rate.id);
       await loadRates(activeType);
@@ -206,6 +267,141 @@ export default function ParametersPage() {
       console.error(error);
       alert('No se pudo reactivar la tarifa.');
     }
+  }
+
+  function openCreateParameterModal() {
+    setParameterForm({ ...emptyCalculationForm, scope: activeScope });
+    setParameterModalOpen(true);
+  }
+
+  function openEditParameterModal(parameter) {
+    setParameterForm({
+      id: parameter.id,
+      scope: parameter.scope,
+      code: parameter.code,
+      numericValue:
+        parameter.unit === 'PERCENT' && parameter.numericValue != null
+          ? Number(parameter.numericValue) * 100
+          : parameter.numericValue ?? '',
+      textValue:
+        parameter.unit === 'BOOLEAN'
+          ? String(parameter.textValue || 'false').toLowerCase()
+          : parameter.textValue ?? '',
+      unit: parameter.unit || 'PERCENT',
+      version: parameter.version || 'LIQ_2026_09',
+      active: parameter.active ?? true,
+      description: parameter.description || '',
+    });
+    setParameterModalOpen(true);
+  }
+
+  function updateParameterForm(field, value) {
+    setParameterForm((prev) => ({
+      ...prev,
+      [field]: value,
+      ...(field === 'unit'
+        ? {
+            numericValue: value === 'BOOLEAN' || value === 'TEXT' ? '' : prev.numericValue,
+            textValue:
+              value === 'BOOLEAN'
+                ? prev.textValue || 'false'
+                : value === 'TEXT'
+                  ? prev.textValue
+                  : '',
+          }
+        : {}),
+    }));
+  }
+
+  function normalizeParameterPayload() {
+    let numericValue = null;
+    let textValue = null;
+
+    if (parameterForm.unit === 'PERCENT') {
+      numericValue = parameterForm.numericValue === '' ? null : Number(parameterForm.numericValue) / 100;
+    } else if (['RATE', 'USD', 'BOB'].includes(parameterForm.unit)) {
+      numericValue = parameterForm.numericValue === '' ? null : Number(parameterForm.numericValue);
+    } else if (parameterForm.unit === 'BOOLEAN') {
+      textValue = String(parameterForm.textValue || 'false');
+    } else if (parameterForm.unit === 'TEXT') {
+      textValue = parameterForm.textValue || '';
+    }
+
+    return {
+      scope: parameterForm.scope,
+      code: parameterForm.code.trim().toUpperCase(),
+      numericValue,
+      textValue,
+      unit: parameterForm.unit,
+      version: parameterForm.version || 'LIQ_2026_09',
+      active: Boolean(parameterForm.active),
+      description: parameterForm.description?.trim() || null,
+    };
+  }
+
+  async function handleParameterSubmit(event) {
+    event.preventDefault();
+
+    if (!parameterForm.scope || !parameterForm.code || !parameterForm.unit) {
+      alert('Alcance, código y unidad son obligatorios.');
+      return;
+    }
+
+    if (
+      ['PERCENT', 'RATE', 'USD', 'BOB'].includes(parameterForm.unit) &&
+      (parameterForm.numericValue === '' || Number.isNaN(Number(parameterForm.numericValue)))
+    ) {
+      alert('Ingresa un valor numérico válido.');
+      return;
+    }
+
+    if (
+      parameterForm.unit === 'PERCENT' &&
+      (Number(parameterForm.numericValue) < 0 || Number(parameterForm.numericValue) > 100)
+    ) {
+      alert('El porcentaje debe estar entre 0 y 100.');
+      return;
+    }
+
+    try {
+      setSavingParameter(true);
+      const payload = normalizeParameterPayload();
+      if (parameterForm.id) await updateCalculationParameter(parameterForm.id, payload);
+      else await createCalculationParameter(payload);
+      setParameterModalOpen(false);
+      await loadParameters(activeScope);
+    } catch (error) {
+      console.error(error);
+      alert(error?.message || 'No se pudo guardar el parámetro.');
+    } finally {
+      setSavingParameter(false);
+    }
+  }
+
+  async function handleDeactivateParameter(parameter) {
+    if (!confirm(`¿Desactivar el parámetro ${parameter.code}?`)) return;
+    try {
+      await deleteCalculationParameter(parameter.id);
+      await loadParameters(activeScope);
+    } catch (error) {
+      console.error(error);
+      alert('No se pudo desactivar el parámetro.');
+    }
+  }
+
+  async function handleActivateParameter(parameter) {
+    try {
+      await activateCalculationParameter(parameter.id);
+      await loadParameters(activeScope);
+    } catch (error) {
+      console.error(error);
+      alert('No se pudo reactivar el parámetro.');
+    }
+  }
+
+  function handleRefresh() {
+    if (section === 'RATES') loadRates(activeType);
+    else loadParameters(activeScope);
   }
 
   return (
@@ -216,18 +412,15 @@ export default function ParametersPage() {
             Sistema / Parámetros Enterprise
           </p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-            Tarifas de proformas
+            Parámetros de cálculo
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Administración centralizada de tarifas LCL, FCL, HBL y Aéreo sin necesidad de SQL.
+            Administración centralizada de tarifas y reglas de liquidación para LCL, FCL, HBL y Aéreo.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => loadRates(activeType)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
-          >
+          <button onClick={handleRefresh} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
             <RefreshCw size={17} />
             Actualizar
           </button>
@@ -244,301 +437,260 @@ export default function ParametersPage() {
           </button>
 
           <button
-            onClick={openCreateModal}
+            onClick={section === 'RATES' ? openCreateRateModal : openCreateParameterModal}
             className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-slate-900/10 hover:bg-slate-700"
           >
             <Plus size={18} />
-            Nueva tarifa
+            {section === 'RATES' ? 'Nueva tarifa' : 'Nuevo parámetro'}
           </button>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-4">
-        {PROFORMA_TYPES.map((item) => {
-          const active = item.key === activeType;
-
-          return (
-            <button
-              key={item.key}
-              onClick={() => setActiveType(item.key)}
-              className={`rounded-3xl border p-5 text-left transition ${
-                active
-                  ? 'border-orange-300 bg-orange-50 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-orange-200'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <h2 className={`text-lg font-black ${active ? 'text-orange-700' : 'text-slate-900'}`}>
-                  {item.label}
-                </h2>
-                <Settings size={18} className={active ? 'text-orange-600' : 'text-slate-400'} />
-              </div>
-              <p className={`mt-2 text-sm ${active ? 'text-orange-700/80' : 'text-slate-500'}`}>
-                {item.description}
-              </p>
-            </button>
-          );
-        })}
-      </section>
-
-      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 p-6">
-          <div>
-            <h2 className="text-lg font-black text-slate-900">
-              Tarifas {activeTypeInfo?.label}
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Tipos configurables: {(RATE_OPTIONS[activeType] || []).join(', ')}
-            </p>
+      <section className="grid gap-4 md:grid-cols-2">
+        <button
+          onClick={() => setSection('RATES')}
+          className={`rounded-3xl border p-5 text-left transition ${
+            section === 'RATES'
+              ? 'border-orange-300 bg-orange-50 shadow-sm'
+              : 'border-slate-200 bg-white hover:border-orange-200'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <TableProperties size={20} className={section === 'RATES' ? 'text-orange-600' : 'text-slate-400'} />
+            <div>
+              <h2 className="text-lg font-black text-slate-900">Tarifas por rango</h2>
+              <p className="mt-1 text-sm text-slate-500">CBM, tonelaje, FOB, comisiones y otras tablas escalonadas.</p>
+            </div>
           </div>
-        </div>
+        </button>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
-                  Tipo tarifa
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
-                  Desde
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
-                  Hasta
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
-                  Precio
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
-                  Moneda
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">
-                  Estado
-                </th>
-                <th className="px-6 py-4 text-right text-xs font-black uppercase tracking-wide text-slate-500">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {loading ? (
-                <tr>
-                  <td colSpan="7" className="px-6 py-10 text-center text-sm font-medium text-slate-500">
-                    Cargando tarifas...
-                  </td>
-                </tr>
-              ) : rates.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="px-6 py-10 text-center text-sm font-medium text-slate-500">
-                    No hay tarifas configuradas para {activeTypeInfo?.label}.
-                  </td>
-                </tr>
-              ) : (
-                rates.map((rate) => (
-                  <tr key={rate.id} className="hover:bg-slate-50/70">
-                    <td className="px-6 py-4 text-sm font-black text-slate-900">
-                      {rate.rateType}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {rate.rangeFrom ?? '—'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {rate.rangeTo ?? '∞'}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-bold text-slate-900">
-                      {rate.price}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {rate.currency}
-                    </td>
-                    <td className="px-6 py-4">
-                      {rate.active ? (
-                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-                          Activa
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
-                          Inactiva
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => openEditModal(rate)}
-                          className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
-                          title="Editar"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        {rate.active ? (
-                          <button
-                            onClick={() => handleDeactivate(rate)}
-                            className="rounded-xl border border-red-100 p-2 text-red-600 hover:bg-red-50"
-                            title="Desactivar"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleActivate(rate)}
-                            className="rounded-xl border border-emerald-100 p-2 text-emerald-600 hover:bg-emerald-50"
-                            title="Reactivar"
-                          >
-                            <RotateCcw size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <button
+          onClick={() => setSection('CALCULATION')}
+          className={`rounded-3xl border p-5 text-left transition ${
+            section === 'CALCULATION'
+              ? 'border-orange-300 bg-orange-50 shadow-sm'
+              : 'border-slate-200 bg-white hover:border-orange-200'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <SlidersHorizontal size={20} className={section === 'CALCULATION' ? 'text-orange-600' : 'text-slate-400'} />
+            <div>
+              <h2 className="text-lg font-black text-slate-900">Planilla de Liquidación</h2>
+              <p className="mt-1 text-sm text-slate-500">Porcentajes, tipos de cambio, valores escalares y reglas configurables.</p>
+            </div>
+          </div>
+        </button>
       </section>
 
-      {modalOpen && (
+      {section === 'RATES' ? (
+        <>
+          <section className="grid gap-4 md:grid-cols-4">
+            {PROFORMA_TYPES.map((item) => {
+              const active = item.key === activeType;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveType(item.key)}
+                  className={`rounded-3xl border p-5 text-left transition ${active ? 'border-orange-300 bg-orange-50 shadow-sm' : 'border-slate-200 bg-white hover:border-orange-200'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <h2 className={`text-lg font-black ${active ? 'text-orange-700' : 'text-slate-900'}`}>{item.label}</h2>
+                    <Settings size={18} className={active ? 'text-orange-600' : 'text-slate-400'} />
+                  </div>
+                  <p className={`mt-2 text-sm ${active ? 'text-orange-700/80' : 'text-slate-500'}`}>{item.description}</p>
+                </button>
+              );
+            })}
+          </section>
+
+          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 p-6">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Tarifas {activeTypeInfo?.label}</h2>
+                <p className="mt-1 text-sm text-slate-500">Tipos configurables: {(RATE_OPTIONS[activeType] || []).join(', ')}</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100">
+                <thead className="bg-slate-50">
+                  <tr>
+                    {['Tipo tarifa', 'Desde', 'Hasta', 'Precio', 'Moneda', 'Estado'].map((label) => (
+                      <th key={label} className="px-6 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">{label}</th>
+                    ))}
+                    <th className="px-6 py-4 text-right text-xs font-black uppercase tracking-wide text-slate-500">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {loadingRates ? (
+                    <tr><td colSpan="7" className="px-6 py-10 text-center text-sm font-medium text-slate-500">Cargando tarifas...</td></tr>
+                  ) : rates.length === 0 ? (
+                    <tr><td colSpan="7" className="px-6 py-10 text-center text-sm font-medium text-slate-500">No hay tarifas configuradas para {activeTypeInfo?.label}.</td></tr>
+                  ) : (
+                    rates.map((rate) => (
+                      <tr key={rate.id} className="hover:bg-slate-50/70">
+                        <td className="px-6 py-4 text-sm font-black text-slate-900">{rate.rateType}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{rate.rangeFrom ?? '—'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{rate.rangeTo ?? '∞'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-900">{rate.price}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{rate.currency}</td>
+                        <td className="px-6 py-4">
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${rate.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {rate.active ? 'Activa' : 'Inactiva'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => openEditRateModal(rate)} className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" title="Editar"><Pencil size={16} /></button>
+                            {rate.active ? (
+                              <button onClick={() => handleDeactivateRate(rate)} className="rounded-xl border border-red-100 p-2 text-red-600 hover:bg-red-50" title="Desactivar"><Trash2 size={16} /></button>
+                            ) : (
+                              <button onClick={() => handleActivateRate(rate)} className="rounded-xl border border-emerald-100 p-2 text-emerald-600 hover:bg-emerald-50" title="Reactivar"><RotateCcw size={16} /></button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      ) : (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {CALCULATION_SCOPES.map((item) => {
+              const active = item.key === activeScope;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveScope(item.key)}
+                  className={`rounded-3xl border p-5 text-left transition ${active ? 'border-orange-300 bg-orange-50 shadow-sm' : 'border-slate-200 bg-white hover:border-orange-200'}`}
+                >
+                  <h2 className={`text-base font-black ${active ? 'text-orange-700' : 'text-slate-900'}`}>{item.label}</h2>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">{item.description}</p>
+                </button>
+              );
+            })}
+          </section>
+
+          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 p-6">
+              <h2 className="text-lg font-black text-slate-900">Planilla de Liquidación — {activeScopeInfo?.label}</h2>
+              <p className="mt-1 text-sm text-slate-500">Los porcentajes se muestran en escala 0–100 y se almacenan internamente entre 0 y 1.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100">
+                <thead className="bg-slate-50">
+                  <tr>
+                    {['Código', 'Descripción', 'Valor', 'Unidad', 'Versión', 'Estado'].map((label) => (
+                      <th key={label} className="px-6 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">{label}</th>
+                    ))}
+                    <th className="px-6 py-4 text-right text-xs font-black uppercase tracking-wide text-slate-500">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {loadingParameters ? (
+                    <tr><td colSpan="7" className="px-6 py-10 text-center text-sm font-medium text-slate-500">Cargando parámetros...</td></tr>
+                  ) : parameters.length === 0 ? (
+                    <tr><td colSpan="7" className="px-6 py-10 text-center text-sm font-medium text-slate-500">No hay parámetros configurados para {activeScopeInfo?.label}.</td></tr>
+                  ) : (
+                    parameters.map((parameter) => (
+                      <tr key={parameter.id} className="hover:bg-slate-50/70">
+                        <td className="px-6 py-4 text-sm font-black text-slate-900">{parameter.code}</td>
+                        <td className="max-w-md px-6 py-4 text-sm text-slate-600">{parameter.description || '—'}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-slate-900">{formatCalculationValue(parameter)}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{parameter.unit}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{parameter.version}</td>
+                        <td className="px-6 py-4">
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${parameter.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {parameter.active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => openEditParameterModal(parameter)} className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" title="Editar"><Pencil size={16} /></button>
+                            {parameter.active ? (
+                              <button onClick={() => handleDeactivateParameter(parameter)} className="rounded-xl border border-red-100 p-2 text-red-600 hover:bg-red-50" title="Desactivar"><Trash2 size={16} /></button>
+                            ) : (
+                              <button onClick={() => handleActivateParameter(parameter)} className="rounded-xl border border-emerald-100 p-2 text-emerald-600 hover:bg-emerald-50" title="Reactivar"><RotateCcw size={16} /></button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      )}
+
+      {rateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <form
-            onSubmit={handleSubmit}
-            className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl"
-          >
+          <form onSubmit={handleRateSubmit} className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-xl font-black text-slate-900">
-                  {form.id ? 'Editar tarifa' : 'Nueva tarifa'}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Configura el tipo, rango, precio y moneda.
-                </p>
+                <h2 className="text-xl font-black text-slate-900">{rateForm.id ? 'Editar tarifa' : 'Nueva tarifa'}</h2>
+                <p className="mt-1 text-sm text-slate-500">Configura el tipo, rango, precio y moneda.</p>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"
-              >
-                <X size={20} />
-              </button>
+              <button type="button" onClick={() => setRateModalOpen(false)} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"><X size={20} /></button>
             </div>
-
             <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className="text-sm font-bold text-slate-700">
-                  Tipo de proforma
-                </span>
-                <select
-                  value={form.proformaType}
-                  onChange={(e) => updateForm('proformaType', e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
-                >
-                  {PROFORMA_TYPES.map((item) => (
-                    <option key={item.key} value={item.key}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-sm font-bold text-slate-700">
-                  Tipo de tarifa
-                </span>
-                <select
-                  value={form.rateType}
-                  onChange={(e) => updateForm('rateType', e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
-                >
-                  {(RATE_OPTIONS[form.proformaType] || []).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-sm font-bold text-slate-700">
-                  Rango desde
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.rangeFrom}
-                  onChange={(e) => updateForm('rangeFrom', e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
-                  placeholder="Ej. 0"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-sm font-bold text-slate-700">
-                  Rango hasta
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.rangeTo}
-                  onChange={(e) => updateForm('rangeTo', e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
-                  placeholder="Vacío = infinito"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-sm font-bold text-slate-700">
-                  Precio
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.price}
-                  onChange={(e) => updateForm('price', e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
-                  placeholder="Ej. 220"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-sm font-bold text-slate-700">
-                  Moneda
-                </span>
-                <select
-                  value={form.currency}
-                  onChange={(e) => updateForm('currency', e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
-                >
-                  <option value="USD">USD</option>
-                  <option value="BOB">BOB</option>
-                </select>
-              </label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Tipo de proforma</span><select value={rateForm.proformaType} onChange={(e) => updateRateForm('proformaType', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300">{PROFORMA_TYPES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Tipo de tarifa</span><select value={rateForm.rateType} onChange={(e) => updateRateForm('rateType', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300">{(RATE_OPTIONS[rateForm.proformaType] || []).map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Rango desde</span><input type="number" step="0.01" value={rateForm.rangeFrom} onChange={(e) => updateRateForm('rangeFrom', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder="Ej. 0" /></label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Rango hasta</span><input type="number" step="0.01" value={rateForm.rangeTo} onChange={(e) => updateRateForm('rangeTo', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder="Vacío = infinito" /></label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Precio</span><input type="number" step="0.01" value={rateForm.price} onChange={(e) => updateRateForm('price', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder="Ej. 220" /></label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Moneda</span><select value={rateForm.currency} onChange={(e) => updateRateForm('currency', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"><option value="USD">USD</option><option value="BOB">BOB</option></select></label>
             </div>
-
             <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
+              <button type="button" onClick={() => setRateModalOpen(false)} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancelar</button>
+              <button type="submit" disabled={savingRate} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-60"><Save size={17} />{savingRate ? 'Guardando...' : 'Guardar tarifa'}</button>
+            </div>
+          </form>
+        </div>
+      )}
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-60"
-              >
-                <Save size={17} />
-                {saving ? 'Guardando...' : 'Guardar tarifa'}
-              </button>
+      {parameterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <form onSubmit={handleParameterSubmit} className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">{parameterForm.id ? 'Editar parámetro' : 'Nuevo parámetro'}</h2>
+                <p className="mt-1 text-sm text-slate-500">Configura un valor utilizado por la Planilla de Liquidación.</p>
+              </div>
+              <button type="button" onClick={() => setParameterModalOpen(false)} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"><X size={20} /></button>
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Alcance</span><select value={parameterForm.scope} onChange={(e) => updateParameterForm('scope', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300">{CALCULATION_SCOPES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Código</span><input type="text" value={parameterForm.code} onChange={(e) => updateParameterForm('code', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm uppercase outline-none focus:border-orange-300" placeholder="Ej. IVA_PERCENT" /></label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Unidad</span><select value={parameterForm.unit} onChange={(e) => updateParameterForm('unit', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300">{UNIT_OPTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+
+              {['PERCENT', 'RATE', 'USD', 'BOB'].includes(parameterForm.unit) && (
+                <label className="space-y-2"><span className="text-sm font-bold text-slate-700">{parameterForm.unit === 'PERCENT' ? 'Valor (%)' : 'Valor'}</span><input type="number" step="0.0001" value={parameterForm.numericValue} onChange={(e) => updateParameterForm('numericValue', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder={parameterForm.unit === 'PERCENT' ? 'Ej. 14.94' : 'Ej. 11.58'} /></label>
+              )}
+
+              {parameterForm.unit === 'BOOLEAN' && (
+                <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Valor</span><select value={parameterForm.textValue || 'false'} onChange={(e) => updateParameterForm('textValue', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"><option value="true">Sí</option><option value="false">No</option></select></label>
+              )}
+
+              {parameterForm.unit === 'TEXT' && (
+                <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Valor</span><input type="text" value={parameterForm.textValue} onChange={(e) => updateParameterForm('textValue', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder="Valor de texto" /></label>
+              )}
+
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Versión</span><input type="text" value={parameterForm.version} onChange={(e) => updateParameterForm('version', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder="LIQ_2026_09" /></label>
+              <label className="space-y-2 md:col-span-2"><span className="text-sm font-bold text-slate-700">Descripción</span><textarea rows="3" value={parameterForm.description} onChange={(e) => updateParameterForm('description', e.target.value)} className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder="Explica para qué se utiliza este parámetro." /></label>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setParameterModalOpen(false)} className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancelar</button>
+              <button type="submit" disabled={savingParameter} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-60"><Save size={17} />{savingParameter ? 'Guardando...' : 'Guardar parámetro'}</button>
             </div>
           </form>
         </div>
       )}
     </div>
   );
-
-
 }

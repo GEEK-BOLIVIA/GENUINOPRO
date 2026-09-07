@@ -40,9 +40,12 @@ const initialForm = {
 
   supplierName: '',
   supplierPhone: '',
-  iceAmountBs: 0,
+  icePercentage: 0,
   needsHbl: false,
+
+  paymentMethod: 'ALIBABA',
   customerPaysUsdCash: false,
+  sensitiveProduct: false,
 };
 
 function Field({ label, value, onChange, type = 'text', placeholder = '' }) {
@@ -58,6 +61,28 @@ function Field({ label, value, onChange, type = 'text', placeholder = '' }) {
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10"
       />
+    </div>
+  );
+}
+
+function SelectField({ label, value, onChange, options }) {
+  return (
+    <div>
+      <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+        {label}
+      </label>
+
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none transition focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -347,7 +372,10 @@ export default function LclOperationalSimulator({
         cbm: Number(form.cbm || 0),
         exchangeRate: Number(form.exchangeRate || 0),
         taxExchangeRate: Number(form.taxExchangeRate || 0),
-        iceAmountBs: Number(form.iceAmountBs || 0),
+        icePercentage: Number(form.icePercentage || 0),
+        customerPaysUsdCash: Boolean(form.customerPaysUsdCash),
+        paymentMethod: form.paymentMethod,
+        sensitiveProduct: Boolean(form.sensitiveProduct),
       };
 
       const response = await calculateOperationalLcl(payload);
@@ -404,7 +432,7 @@ export default function LclOperationalSimulator({
         cbm: Number(form.cbm || 0),
         exchangeRate: Number(form.exchangeRate || 0),
         taxExchangeRate: Number(form.taxExchangeRate || 0),
-        iceAmountBs: Number(form.iceAmountBs || 0),
+        icePercentage: Number(form.icePercentage || 0),
         };
 
         if (isEditMode) {
@@ -590,8 +618,52 @@ export default function LclOperationalSimulator({
                   update('taxExchangeRate', value)
                 }
               />
-              <Field label="ICE Bs" type="number" value={form.iceAmountBs} onChange={(v) => update('iceAmountBs', v)} />
+              <Field label="ICE %" type="number" value={form.icePercentage} onChange={(v) => update('icePercentage', v)} />
               <Field label="Gastos varios Bs" type="number" value={form.miscellaneousExpensesBs} onChange={(v) => update('miscellaneousExpensesBs', v)} />
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            eyebrow="Paso 5"
+            title="Condiciones de la operación"
+            description="Define la vía de pago y las condiciones comerciales que modifican el cálculo."
+          >
+            <div className="grid gap-4 md:grid-cols-3">
+
+              <SelectField
+                label="Vía de pago"
+                value={form.paymentMethod}
+                onChange={(v) => update('paymentMethod', v)}
+                options={[
+                  { value: 'ALIBABA', label: 'Alibaba' },
+                  { value: 'TRANSFERENCIA', label: 'Transferencia' },
+                ]}
+              />
+
+              <SelectField
+                label="Cliente paga en dólares físicos"
+                value={form.customerPaysUsdCash ? 'true' : 'false'}
+                onChange={(v) =>
+                  update('customerPaysUsdCash', v === 'true')
+                }
+                options={[
+                  { value: 'false', label: 'No' },
+                  { value: 'true', label: 'Sí' },
+                ]}
+              />
+
+              <SelectField
+                label="Producto sensible"
+                value={form.sensitiveProduct ? 'true' : 'false'}
+                onChange={(v) =>
+                  update('sensitiveProduct', v === 'true')
+                }
+                options={[
+                  { value: 'false', label: 'No' },
+                  { value: 'true', label: 'Sí' },
+                ]}
+              />
+
             </div>
           </SectionCard>
         </div>

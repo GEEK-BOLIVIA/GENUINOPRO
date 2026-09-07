@@ -33,7 +33,9 @@ public class LclOperationalCalculationRequest {
     private String supplierName;
     private String supplierPhone;
 
-    private BigDecimal iceAmountBs;
+    private BigDecimal icePercentage;
+    private String paymentMethod;
+    private Boolean sensitiveProduct;
 
     private Boolean needsHbl;
     private Boolean customerPaysUsdCash;
@@ -95,8 +97,29 @@ public class LclOperationalCalculationRequest {
     public String getSupplierPhone() { return supplierPhone; }
     public void setSupplierPhone(String supplierPhone) { this.supplierPhone = supplierPhone; }
 
-    public BigDecimal getIceAmountBs() { return iceAmountBs; }
-    public void setIceAmountBs(BigDecimal iceAmountBs) { this.iceAmountBs = iceAmountBs; }
+    public BigDecimal getIcePercentage() {
+        return icePercentage;
+    }
+
+    public void setIcePercentage(BigDecimal icePercentage) {
+        this.icePercentage = icePercentage;
+    }
+
+    public String getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
+    public Boolean getSensitiveProduct() {
+        return sensitiveProduct;
+    }
+
+    public void setSensitiveProduct(Boolean sensitiveProduct) {
+        this.sensitiveProduct = sensitiveProduct;
+    }
 
     public Boolean getNeedsHbl() { return needsHbl; }
     public void setNeedsHbl(Boolean needsHbl) { this.needsHbl = needsHbl; }

@@ -860,8 +860,9 @@ public class TypedLclProformaService {
                 .toList();
     }
 
-    private BigDecimal calculateGrandTotalFromLines(UUID proformaId) {
-        var lines = typedProformaChargeLineRepository.findByProformaIdOrderBySortOrderAsc(proformaId);
+        private BigDecimal calculateGrandTotalFromLines(UUID proformaId) {
+        var lines = typedProformaChargeLineRepository
+                .findByProformaIdOrderBySortOrderAsc(proformaId);
 
         BigDecimal usdSubtotal = lines.stream()
                 .filter(line -> List.of("FOB", "GIRO", "MAR").contains(line.getCode()))
@@ -873,11 +874,25 @@ public class TypedLclProformaService {
                 .map(TypedProformaChargeLine::getTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        TypedProformaLcl lcl = typedProformaLclRepository
+                .findById(proformaId)
+                .orElseThrow(() ->
+                        new NoSuchElementException(
+                                "No existe el detalle LCL " + proformaId
+                        )
+                );
+
+        BigDecimal exchangeRate =
+                lcl.getExchangeRate() != null
+                        && lcl.getExchangeRate().compareTo(BigDecimal.ZERO) > 0
+                        ? lcl.getExchangeRate()
+                        : BigDecimal.TEN;
+
         return usdSubtotal
-                .multiply(BigDecimal.TEN)
+                .multiply(exchangeRate)
                 .add(bsSubtotal)
                 .setScale(2, RoundingMode.HALF_UP);
-    }
+        }
 
     @Transactional
     public TypedLclProformaDetailResponse clientAccept(UUID id, String actor) {

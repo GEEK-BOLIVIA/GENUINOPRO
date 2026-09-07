@@ -11,6 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import com.genuino.crm.config.ProformaRateService;
 
+import com.genuino.crm.config.CalculationParameterService;
+
+
 @Service
 public class LclOperationalCalculationService {
 
@@ -18,10 +21,15 @@ public class LclOperationalCalculationService {
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
 
     private final ProformaRateService proformaRateService;
+    private final CalculationParameterService calculationParameterService;
 
-    public LclOperationalCalculationService(ProformaRateService proformaRateService) {
+        public LclOperationalCalculationService(
+                ProformaRateService proformaRateService,
+                CalculationParameterService calculationParameterService
+        ) {
         this.proformaRateService = proformaRateService;
-    }
+        this.calculationParameterService = calculationParameterService;
+        }
 
 
     public LclOperationalCalculationResponse calculate(LclOperationalCalculationRequest request) {
@@ -32,6 +40,7 @@ public class LclOperationalCalculationService {
 
         BigDecimal bankCommissionUsd = calculateBankCommission(
                 fobBaseUsd,
+                request.getPaymentMethod(),
                 Boolean.TRUE.equals(request.getCustomerPaysUsdCash())
         );
 
@@ -45,12 +54,12 @@ public class LclOperationalCalculationService {
                 .add(maritimeTransportUsd);
 
         BigDecimal customsTaxesBs = calculateCustomsTaxes(
-            merchandiseValueUsd,
-            maritimeTransportUsd,
-            request.getTaxExchangeRate(),
-            request.getGaPercentage(),
-            request.getIvaPercentage(),
-            request.getIceAmountBs()
+        merchandiseValueUsd,
+        request.getCbm(),
+        request.getTaxExchangeRate(),
+        request.getGaPercentage(),
+        request.getIvaPercentage(),
+        request.getIcePercentage()
         );
 
         BigDecimal alboBs = calculateAlbo(request.getCbm());
@@ -128,39 +137,42 @@ public class LclOperationalCalculationService {
         return response;
     }
 
-    private BigDecimal calculateBankCommission(BigDecimal fobBaseUsd, boolean customerPaysUsdCash) {
-        if (!customerPaysUsdCash) {
-            BigDecimal percent = proformaRateService.findRatePrice(
+private BigDecimal calculateBankCommission(
+        BigDecimal fobBaseUsd,
+        String paymentMethod,
+        boolean customerPaysUsdCash
+) {
+    String method =
+            paymentMethod == null
+                    ? "ALIBABA"
+                    : paymentMethod.trim().toUpperCase();
+
+    if ("ALIBABA".equals(method)) {
+        return fobBaseUsd
+                .multiply(new BigDecimal("0.05"))
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    if ("SWIFT".equals(method)
+            || "TRANSFERENCIA".equals(method)) {
+
+        if (fobBaseUsd.compareTo(new BigDecimal("50000")) <= 0) {
+            return proformaRateService.findRatePrice(
                     "LCL",
-                    "GIRO_PERCENT",
+                    "COMISION_TRANSFERENCIA",
                     fobBaseUsd
-            );
-
-            return fobBaseUsd
-                    .multiply(percent.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP))
-                    .setScale(2, RoundingMode.HALF_UP);
+            ).setScale(2, RoundingMode.HALF_UP);
         }
-
-        if (lte(fobBaseUsd, "5000")) return bd("550");
-        if (lte(fobBaseUsd, "9999")) return bd("600");
-        if (lte(fobBaseUsd, "11999")) return bd("750");
-        if (lte(fobBaseUsd, "14999")) return bd("800");
-        if (lte(fobBaseUsd, "17999")) return bd("950");
-        if (lte(fobBaseUsd, "19999")) return bd("1050");
-        if (lte(fobBaseUsd, "21999")) return bd("1200");
-        if (lte(fobBaseUsd, "24500")) return bd("1350");
-        if (lte(fobBaseUsd, "29999")) return bd("1700");
-        if (lte(fobBaseUsd, "32999")) return bd("1900");
-        if (lte(fobBaseUsd, "34999")) return bd("2050");
-        if (lte(fobBaseUsd, "39999")) return bd("2200");
-        if (lte(fobBaseUsd, "42999")) return bd("2400");
-        if (lte(fobBaseUsd, "44999")) return bd("2550");
-        if (lte(fobBaseUsd, "50000")) return bd("2700");
 
         return fobBaseUsd
                 .multiply(new BigDecimal("0.055"))
                 .setScale(2, RoundingMode.HALF_UP);
     }
+
+    throw new IllegalArgumentException(
+            "Método de pago LCL no soportado: " + paymentMethod
+    );
+}
 
 private BigDecimal calculateMaritimeTransport(
         BigDecimal cbmValue,
@@ -226,42 +238,77 @@ private BigDecimal calculateMaritimeTransport(
         return bd("190");
     }
 
-    private BigDecimal calculateCustomsTaxes(
-            BigDecimal merchandiseValueUsd,
-            BigDecimal maritimeTransportUsd,
-            BigDecimal exchangeRate,
-            BigDecimal gaPercentage,
-            BigDecimal ivaPercentage,
-            BigDecimal iceAmountBs
-    ) {
+private BigDecimal calculateCustomsTaxes(
+        BigDecimal merchandiseValueUsd,
+        BigDecimal cbmValue,
+        BigDecimal taxExchangeRate,
+        BigDecimal gaPercentage,
+        BigDecimal ivaPercentage,
+        BigDecimal icePercentage
+) {
         BigDecimal fob = money(merchandiseValueUsd);
-
-        BigDecimal transport = money(maritimeTransportUsd);
-       
+        BigDecimal cbm = money(cbmValue);
 
         BigDecimal gaRate = percent(gaPercentage);
-        BigDecimal ivaRate = percent(ivaPercentage);
 
-        BigDecimal insuranceUsd = fob.multiply(new BigDecimal("0.02"));
+        BigDecimal ivaRate;
 
-        BigDecimal transportAduanaUsd = transport.multiply(new BigDecimal("0.76"));
+        if (ivaPercentage == null
+                || ivaPercentage.compareTo(BigDecimal.ZERO) == 0) {
+
+        ivaRate =
+                calculationParameterService.findNumericValue(
+                        "GENERAL",
+                        "IVA_PERCENT"
+                );
+
+        } else {
+        ivaRate = percent(ivaPercentage);
+        }
+
+        BigDecimal iceRate = percent(icePercentage);
+
+        BigDecimal insuranceRate =
+                calculationParameterService.findNumericValue(
+                        "GENERAL",
+                        "INSURANCE_PERCENT_DEFAULT"
+                );
+
+        BigDecimal insuranceUsd =
+                fob.multiply(insuranceRate);
+
+        BigDecimal customsFreightRate =
+                calculationParameterService.findNumericValue(
+                        "LCL",
+                        "CUSTOMS_FREIGHT_USD_PER_CBM"
+                );
+
+        BigDecimal customsFreightUsd =
+                cbm.multiply(customsFreightRate);
 
         BigDecimal cifBs = fob
-                .add(transportAduanaUsd)
+                .add(customsFreightUsd)
                 .add(insuranceUsd)
-                .multiply(money(exchangeRate));
+                .multiply(money(taxExchangeRate));
 
-        BigDecimal gaBs = cifBs.multiply(gaRate);
+        BigDecimal gaBs =
+                cifBs.multiply(gaRate);
 
-        BigDecimal ivaBs = cifBs.add(gaBs).multiply(ivaRate);
+        BigDecimal ivaBs =
+                cifBs
+                        .add(gaBs)
+                        .multiply(ivaRate);
 
-        BigDecimal iceBs = money(iceAmountBs);
+        BigDecimal iceBs =
+                cifBs
+                        .add(gaBs)
+                        .multiply(iceRate);
 
         return gaBs
                 .add(ivaBs)
                 .add(iceBs)
                 .setScale(2, RoundingMode.HALF_UP);
-    }
+        }
 
     private BigDecimal calculateAlbo(BigDecimal cbmValue) {
         BigDecimal cbm = money(cbmValue);

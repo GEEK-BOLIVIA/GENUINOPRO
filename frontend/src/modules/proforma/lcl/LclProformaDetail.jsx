@@ -946,13 +946,6 @@ const unitPrice =
           {canEditProforma && (
             <>
               <button
-                onClick={handleDownloadPdf}
-                className="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white hover:bg-slate-800"
-              >
-                Descargar PDF
-              </button>
-
-              <button
                 type="button"
                 onClick={saveChanges}
                 disabled={saving}
@@ -1034,14 +1027,12 @@ const unitPrice =
               </span>
             )}
 
-          {(isApproved || isRejected || data.status === 'CLIENT_ACCEPTED' || data.status === 'CLIENT_REJECTED') && (
             <button
               onClick={handleDownloadPdf}
               className="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white hover:bg-slate-800"
             >
               Descargar PDF
             </button>
-          )}
         </div>
       </div>
 
