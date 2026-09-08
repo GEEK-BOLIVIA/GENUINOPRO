@@ -98,6 +98,31 @@ public class TypedFclProforma {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+
+    @Column(name = "payment1_amount_usd", precision = 14, scale = 2)
+    private BigDecimal payment1AmountUsd;
+
+    @Column(name = "payment1_method", length = 30)
+    private String payment1Method;
+
+    @Column(name = "payment2_amount_usd", precision = 14, scale = 2)
+    private BigDecimal payment2AmountUsd;
+
+    @Column(name = "payment2_method", length = 30)
+    private String payment2Method;
+
+    @Column(name = "payment3_amount_usd", precision = 14, scale = 2)
+    private BigDecimal payment3AmountUsd;
+
+    @Column(name = "payment3_method", length = 30)
+    private String payment3Method;
+
+    @Column(name = "payment4_amount_usd", precision = 14, scale = 2)
+    private BigDecimal payment4AmountUsd;
+
+    @Column(name = "payment4_method", length = 30)
+    private String payment4Method;
+
     @PrePersist
     public void prePersist() {
         if (id == null) id = UUID.randomUUID();
@@ -276,5 +301,69 @@ public class TypedFclProforma {
             String calculationRuleVersion
     ) {
         this.calculationRuleVersion = calculationRuleVersion;
+    }
+
+    public BigDecimal getPayment1AmountUsd() {
+        return payment1AmountUsd;
+    }
+
+    public void setPayment1AmountUsd(BigDecimal payment1AmountUsd) {
+        this.payment1AmountUsd = payment1AmountUsd;
+    }
+
+    public String getPayment1Method() {
+        return payment1Method;
+    }
+
+    public void setPayment1Method(String payment1Method) {
+        this.payment1Method = payment1Method;
+    }
+
+    public BigDecimal getPayment2AmountUsd() {
+        return payment2AmountUsd;
+    }
+
+    public void setPayment2AmountUsd(BigDecimal payment2AmountUsd) {
+        this.payment2AmountUsd = payment2AmountUsd;
+    }
+
+    public String getPayment2Method() {
+        return payment2Method;
+    }
+
+    public void setPayment2Method(String payment2Method) {
+        this.payment2Method = payment2Method;
+    }
+
+    public BigDecimal getPayment3AmountUsd() {
+        return payment3AmountUsd;
+    }
+
+    public void setPayment3AmountUsd(BigDecimal payment3AmountUsd) {
+        this.payment3AmountUsd = payment3AmountUsd;
+    }
+
+    public String getPayment3Method() {
+        return payment3Method;
+    }
+
+    public void setPayment3Method(String payment3Method) {
+        this.payment3Method = payment3Method;
+    }
+
+    public BigDecimal getPayment4AmountUsd() {
+        return payment4AmountUsd;
+    }
+
+    public void setPayment4AmountUsd(BigDecimal payment4AmountUsd) {
+        this.payment4AmountUsd = payment4AmountUsd;
+    }
+
+    public String getPayment4Method() {
+        return payment4Method;
+    }
+
+    public void setPayment4Method(String payment4Method) {
+        this.payment4Method = payment4Method;
     }
 }

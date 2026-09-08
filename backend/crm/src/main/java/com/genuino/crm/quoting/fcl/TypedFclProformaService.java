@@ -24,6 +24,8 @@ import com.genuino.crm.customerprofile.ProformaCustomerSnapshotService;
 
 import com.genuino.crm.quoting.fcl.dto.TypedFclProformaDetailResponse;
 
+import com.genuino.crm.config.CalculationParameterService;
+
 @Service
 public class TypedFclProformaService {
 
@@ -34,6 +36,7 @@ public class TypedFclProformaService {
     private final CommercialTaskService commercialTaskService;
     private final ProformaAccessService proformaAccessService;
     private final ProformaCustomerSnapshotService customerSnapshotService;
+    private final CalculationParameterService calculationParameterService;
 
     public TypedFclProformaService(
             TypedFclProformaRepository repository,
@@ -42,7 +45,8 @@ public class TypedFclProformaService {
             OpportunityRepository opportunityRepository,
             CommercialTaskService commercialTaskService,
             ProformaAccessService proformaAccessService,
-            ProformaCustomerSnapshotService customerSnapshotService
+            ProformaCustomerSnapshotService customerSnapshotService,
+            CalculationParameterService calculationParameterService
     ) {
         this.repository = repository;
         this.rateService = rateService;
@@ -51,6 +55,7 @@ public class TypedFclProformaService {
         this.commercialTaskService = commercialTaskService;
         this.proformaAccessService = proformaAccessService;
         this.customerSnapshotService = customerSnapshotService;
+        this.calculationParameterService = calculationParameterService;
     }
 
     @Transactional(readOnly = true)
@@ -210,23 +215,63 @@ public class TypedFclProformaService {
 
         item.setMerchandiseValueUsd(fobUsd);
 
-        BigDecimal maritimeFreightUsd = safe(item.getMaritimeFreightUsd());
+        BigDecimal maritimeBaseUsd =
+                safe(item.getMaritimeFreightUsd());
 
-        if (maritimeFreightUsd.compareTo(BigDecimal.ZERO) == 0) {
-            String containerType = item.getContainerType();
+        BigDecimal inlandBaseUsd =
+                safe(item.getInlandFreightBob());
 
-            if (containerType == null || containerType.isBlank()) {
-                containerType = "FCL20";
-                item.setContainerType(containerType);
-            }
+        BigDecimal maritimeSellMarkup =
+                calculationParameterService.findNumericValue(
+                        "FCL",
+                        "MARITIME_SELL_MARKUP_USD"
+                );
 
-            maritimeFreightUsd = rateService.findRatePrice("FCL", containerType, BigDecimal.ZERO);
-        }
+        BigDecimal inlandSellMarkup =
+                calculationParameterService.findNumericValue(
+                        "FCL",
+                        "INLAND_SELL_MARKUP_USD"
+                );
 
-        item.setMaritimeFreightUsd(maritimeFreightUsd);
-        item.setOriginFreightUsd(maritimeFreightUsd);
+        BigDecimal customsMaritimeAdjustment =
+                calculationParameterService.findNumericValue(
+                        "FCL",
+                        "CUSTOMS_MARITIME_ADJUSTMENT_USD"
+                );
 
-        BigDecimal insuranceUsd = fobUsd.multiply(new BigDecimal("0.02"));
+        BigDecimal customsInlandAdjustment =
+                calculationParameterService.findNumericValue(
+                        "FCL",
+                        "CUSTOMS_INLAND_ADJUSTMENT_USD"
+                );
+
+        BigDecimal maritimeSellUsd =
+                maritimeBaseUsd.add(maritimeSellMarkup);
+
+        BigDecimal inlandSellBob =
+                inlandBaseUsd
+                        .add(inlandSellMarkup)
+                        .multiply(exchangeRate);
+
+        BigDecimal customsMaritimeUsd =
+                maritimeBaseUsd.add(customsMaritimeAdjustment);
+
+        BigDecimal customsInlandUsd =
+                inlandBaseUsd.add(customsInlandAdjustment);
+
+
+        item.setMaritimeFreightUsd(maritimeBaseUsd);
+        item.setOriginFreightUsd(maritimeSellUsd);
+        item.setInlandFreightBob(inlandSellBob);
+
+        BigDecimal insuranceRate =
+                calculationParameterService.findNumericValue(
+                        "GENERAL",
+                        "INSURANCE_PERCENT_DEFAULT"
+                );
+
+        BigDecimal insuranceUsd =
+                fobUsd.multiply(insuranceRate);
         item.setInsuranceUsdCalculated(insuranceUsd);
         item.setInsuranceUsd(insuranceUsd);
 
@@ -234,8 +279,8 @@ public class TypedFclProformaService {
                 safe(item.getContainerReleaseUsd());
 
         BigDecimal cifBob = fobUsd
-                .add(maritimeFreightUsd)
-                .add(containerReleaseUsd)
+                .add(customsMaritimeUsd)
+                .add(customsInlandUsd)
                 .add(insuranceUsd)
                 .multiply(taxExchangeRate);
 
@@ -295,7 +340,7 @@ public class TypedFclProformaService {
 
         BigDecimal subtotalUsd = fobUsd
                 .add(bankTransferCommissionUsd)
-                .add(maritimeFreightUsd)
+                .add(maritimeSellUsd)
                 .add(containerReleaseUsd);
 
         item.setSubtotalUsd(subtotalUsd);
@@ -318,39 +363,264 @@ public class TypedFclProformaService {
                 item.setTotalBob(totalOperationBob);
             }
 
+    private BigDecimal resolveSwiftCommission(
+            BigDecimal amountUsd,
+            boolean customerPaysInUsd
+    ) {
+        BigDecimal amount = safe(amountUsd);
+
+        if (amount.compareTo(new BigDecimal("10000")) <= 0) {
+
+            String rateType = customerPaysInUsd
+                    ? "SWIFT_USD_YES_FIXED"
+                    : "SWIFT_USD_NO_FIXED";
+
+            return rateService
+                    .findRatePrice(
+                            "FCL",
+                            rateType,
+                            amount
+                    )
+                    .setScale(
+                            2,
+                            RoundingMode.HALF_UP
+                    );
+        }
+
+        String rateType = customerPaysInUsd
+                ? "SWIFT_USD_YES_PERCENT"
+                : "SWIFT_USD_NO_PERCENT";
+
+        BigDecimal percent =
+                rateService.findRatePrice(
+                        "FCL",
+                        rateType,
+                        amount
+                );
+
+        return amount
+                .multiply(
+                        percent.divide(
+                                new BigDecimal("100"),
+                                6,
+                                RoundingMode.HALF_UP
+                        )
+                )
+                .setScale(
+                        2,
+                        RoundingMode.HALF_UP
+                );
+    }
+
     private BigDecimal percentOrDefault(BigDecimal value, BigDecimal defaultValue) {
         return value == null ? defaultValue : value;
     }
 
     private BigDecimal resolveGenuinoCommission(BigDecimal fobUsd) {
-        return rateService.findRatePrice("FCL", "COMISION_GENUINO", fobUsd);
+        return rateService.findRatePrice(
+                "FCL",
+                "COMISION_GENUINO",
+                fobUsd
+        );
     }
 
-    private BigDecimal resolveBankTransferCommission(TypedFclProforma item, BigDecimal fobUsd) {
+    private BigDecimal resolveBankTransferCommission(
+            TypedFclProforma item,
+            BigDecimal fobUsd
+    ) {
         if (Boolean.TRUE.equals(item.getCustomerPaysSupplier())) {
             return BigDecimal.ZERO;
+        }
+
+        int paymentCount =
+                item.getFobPaymentCount() == null
+                        ? 1
+                        : item.getFobPaymentCount();
+
+        if (paymentCount > 1) {
+            return resolveInstallmentsCommission(
+                    item,
+                    fobUsd
+            );
         }
 
         String paymentMethod = item.getPaymentMethod();
 
         if ("ALIBABA".equalsIgnoreCase(paymentMethod)) {
-            BigDecimal percent = rateService.findRatePrice(
-                    "FCL",
-                    "GIRO_ALIBABA_PERCENT",
-                    fobUsd
-            );
+            BigDecimal percent =
+                    rateService.findRatePrice(
+                            "FCL",
+                            "GIRO_ALIBABA_PERCENT",
+                            fobUsd
+                    );
 
             return fobUsd
-                    .multiply(percent.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP))
-                    .setScale(2, RoundingMode.HALF_UP);
+                    .multiply(
+                            percent.divide(
+                                    new BigDecimal("100"),
+                                    6,
+                                    RoundingMode.HALF_UP
+                            )
+                    )
+                    .setScale(
+                            2,
+                            RoundingMode.HALF_UP
+                    );
         }
 
-        return rateService.findRatePrice("FCL", "COMISION_GIRO_CHILE", fobUsd);
+        if ("SWIFT".equalsIgnoreCase(paymentMethod)
+                || "TRANSFERENCIA".equalsIgnoreCase(paymentMethod)) {
+
+            return resolveSwiftCommission(
+                    fobUsd,
+                    Boolean.TRUE.equals(
+                            item.getCustomerPaysInUsd()
+                    )
+            );
+        }
+
+        throw new IllegalArgumentException(
+                "Método de pago FCL no válido: "
+                        + paymentMethod
+        );
+    }
+
+    private BigDecimal resolveInstallmentCommission(
+            TypedFclProforma item,
+            BigDecimal amountUsd,
+            String paymentMethod
+    ) {
+        BigDecimal amount = safe(amountUsd);
+
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                    "El monto de cada cuota debe ser mayor a cero"
+            );
+        }
+
+        if ("ALIBABA".equalsIgnoreCase(paymentMethod)) {
+            BigDecimal percent =
+                    rateService.findRatePrice(
+                            "FCL",
+                            "GIRO_ALIBABA_PERCENT",
+                            amount
+                    );
+
+            return amount
+                    .multiply(
+                            percent.divide(
+                                    new BigDecimal("100"),
+                                    6,
+                                    RoundingMode.HALF_UP
+                            )
+                    )
+                    .setScale(
+                            2,
+                            RoundingMode.HALF_UP
+                    );
+        }
+
+        if ("SWIFT".equalsIgnoreCase(paymentMethod)
+                || "TRANSFERENCIA".equalsIgnoreCase(paymentMethod)) {
+
+            return resolveSwiftCommission(
+                    amount,
+                    Boolean.TRUE.equals(
+                            item.getCustomerPaysInUsd()
+                    )
+            );
+        }
+
+        throw new IllegalArgumentException(
+                "Método de pago no válido para la cuota: "
+                        + paymentMethod
+        );
+    }
+
+    private BigDecimal resolveInstallmentsCommission(
+            TypedFclProforma item,
+            BigDecimal fobUsd
+    ) {
+        int count =
+                item.getFobPaymentCount() == null
+                        ? 1
+                        : item.getFobPaymentCount();
+
+        if (count < 2 || count > 4) {
+            throw new IllegalArgumentException(
+                    "El número de pagos FOB debe estar entre 2 y 4"
+            );
+        }
+
+        BigDecimal[] amounts = {
+                item.getPayment1AmountUsd(),
+                item.getPayment2AmountUsd(),
+                item.getPayment3AmountUsd(),
+                item.getPayment4AmountUsd()
+        };
+
+        String[] methods = {
+                item.getPayment1Method(),
+                item.getPayment2Method(),
+                item.getPayment3Method(),
+                item.getPayment4Method()
+        };
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        BigDecimal totalCommission = BigDecimal.ZERO;
+
+        for (int i = 0; i < count; i++) {
+            BigDecimal amount = safe(amounts[i]);
+
+            if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException(
+                        "La cuota "
+                                + (i + 1)
+                                + " debe tener un monto mayor a cero"
+                );
+            }
+
+            if (methods[i] == null || methods[i].isBlank()) {
+                throw new IllegalArgumentException(
+                        "La cuota "
+                                + (i + 1)
+                                + " debe tener un método de pago"
+                );
+            }
+
+            totalAmount = totalAmount.add(amount);
+
+            totalCommission = totalCommission.add(
+                    resolveInstallmentCommission(
+                            item,
+                            amount,
+                            methods[i]
+                    )
+            );
+        }
+
+        if (totalAmount.compareTo(fobUsd) != 0) {
+            throw new IllegalArgumentException(
+                    "La suma de las cuotas (USD "
+                            + totalAmount
+                            + ") debe ser igual al FOB (USD "
+                            + fobUsd
+                            + ")"
+            );
+        }
+
+        return totalCommission
+                .setScale(
+                        2,
+                        RoundingMode.HALF_UP
+                );
     }
 
     private BigDecimal safe(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
+
+    
 
     @Transactional
     public TypedFclProforma submitForReview(UUID id) {

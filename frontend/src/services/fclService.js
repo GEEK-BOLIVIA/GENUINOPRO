@@ -72,8 +72,11 @@ export async function calculateFclProforma(payload) {
 export async function downloadFclPdf(id) {
   const token = getApiToken();
 
+  const API_BASE_URL =
+    import.meta.env.VITE_API_URL || '/api';
+
   const response = await fetch(
-    `/api/typed-proformas/fcl/${id}/pdf`,
+    `${API_BASE_URL}/typed-proformas/fcl/${id}/pdf`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -82,18 +85,36 @@ export async function downloadFclPdf(id) {
   );
 
   if (!response.ok) {
-    throw new Error('No se pudo descargar el PDF FCL');
+    throw new Error(
+      `No se pudo descargar el PDF FCL (${response.status})`
+    );
+  }
+
+  const contentType =
+    response.headers.get('content-type') || '';
+
+  if (!contentType.includes('application/pdf')) {
+    throw new Error(
+      `Respuesta inválida al descargar PDF FCL: ${contentType}`
+    );
   }
 
   const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement('a');
+
+  const url =
+    window.URL.createObjectURL(blob);
+
+  const link =
+    document.createElement('a');
 
   link.href = url;
-  link.download = `proforma-fcl-${id}.pdf`;
+  link.download =
+    `proforma-fcl-${id}.pdf`;
 
   document.body.appendChild(link);
+
   link.click();
+
   link.remove();
 
   window.URL.revokeObjectURL(url);

@@ -51,7 +51,20 @@ const initialForm = {
   importerNitType: 'NIT_CLIENTE',
 
   totalWeightTn: '',
-  fobPaymentCount: '2',
+  fobPaymentCount: '1',
+
+  payment1AmountUsd: '',
+  payment1Method: 'SWIFT',
+
+  payment2AmountUsd: '',
+  payment2Method: 'SWIFT',
+
+  payment3AmountUsd: '',
+  payment3Method: 'SWIFT',
+
+  payment4AmountUsd: '',
+  payment4Method: 'SWIFT',
+
   customerPaysInUsd: false,
   customerPaysSupplier: false,
 
@@ -60,11 +73,6 @@ const initialForm = {
   adaBob: '',
   commissionUsd: '',
 
-  taxExchangeRate: '',
-
-  containerReleaseUsd: '',
-
-  miscellaneousExpensesBob: '',
 
   customerAddress: '',
 
@@ -118,7 +126,19 @@ export default function FclOperationalSimulator({
           paymentMethod: item.paymentMethod || 'ALIBABA',
           importerNitType: item.importerNitType || 'NIT_CLIENTE',
           totalWeightTn: item.totalWeightTn || '',
-          fobPaymentCount: item.fobPaymentCount || '2',
+          fobPaymentCount: String(item.fobPaymentCount || 1),
+
+          payment1AmountUsd: item.payment1AmountUsd ?? '',
+          payment1Method: item.payment1Method || 'SWIFT',
+
+          payment2AmountUsd: item.payment2AmountUsd ?? '',
+          payment2Method: item.payment2Method || 'SWIFT',
+
+          payment3AmountUsd: item.payment3AmountUsd ?? '',
+          payment3Method: item.payment3Method || 'SWIFT',
+
+          payment4AmountUsd: item.payment4AmountUsd ?? '',
+          payment4Method: item.payment4Method || 'SWIFT',
           customerPaysInUsd: item.customerPaysInUsd || false,
           customerPaysSupplier: item.customerPaysSupplier || false,
 
@@ -255,6 +275,18 @@ export default function FclOperationalSimulator({
       customerPaysInUsd: Boolean(source.customerPaysInUsd),
       customerPaysSupplier: Boolean(source.customerPaysSupplier),
 
+      payment1AmountUsd: numberOrNull(source.payment1AmountUsd),
+      payment1Method: source.payment1Method || null,
+
+      payment2AmountUsd: numberOrNull(source.payment2AmountUsd),
+      payment2Method: source.payment2Method || null,
+
+      payment3AmountUsd: numberOrNull(source.payment3AmountUsd),
+      payment3Method: source.payment3Method || null,
+
+      payment4AmountUsd: numberOrNull(source.payment4AmountUsd),
+      payment4Method: source.payment4Method || null,
+      
       taxExchangeRate:
           numberOrNull(source.taxExchangeRate),
 
@@ -273,6 +305,8 @@ export default function FclOperationalSimulator({
   async function handleCalculate() {
     try {
       setCalculating(true);
+
+      console.log('FCL PAYLOAD', buildPayload());
 
       const result = await calculateFclProforma(buildPayload());
 
@@ -432,7 +466,7 @@ export default function FclOperationalSimulator({
               <Field type="number" label="Cantidad contenedores" value={form.containerCount} onChange={(v) => update('containerCount', v)} />
               <Field label="Producto" value={form.product} onChange={(v) => update('product', v)} />
               <Field type="number" label="FOB USD" value={form.fobUsd} onChange={(v) => update('fobUsd', v)} />
-              <Field type="number" label="Transporte marítimo USD" value={form.maritimeFreightUsd} onChange={(v) => update('maritimeFreightUsd', v)} />
+              <Field type="number" label="Transporte marítimo base USD" value={form.maritimeFreightUsd} onChange={(v) => update('maritimeFreightUsd', v)} />
               <Field
                 type="number"
                 label="Liberación contenedor USD"
@@ -444,7 +478,7 @@ export default function FclOperationalSimulator({
                   )
                 }
               />
-              <Field type="number" label="Transporte terrestre Bs" value={form.inlandFreightBob} onChange={(v) => update('inlandFreightBob', v)} />
+              <Field type="number" label="Transporte terrestre base Bs." value={form.inlandFreightBob} onChange={(v) => update('inlandFreightBob', v)} />
               <Field
                 type="number"
                 label="Otros gastos Bs"
@@ -473,12 +507,24 @@ export default function FclOperationalSimulator({
                   update('taxExchangeRate', value)
                 }
               />
-              <Field
-                label="Número pagos FOB"
+              
+                <SelectField
+                  label="Número pagos FOB"
+                  value={String(form.fobPaymentCount)}
+                  onChange={(value) =>
+                    update('fobPaymentCount', value)
+                  }
+                  options={[
+                    ['1', '1 pago'],
+                    ['2', '2 pagos'],
+                    ['3', '3 pagos'],
+                    ['4', '4 pagos'],
+                  ]}
+                />
                 type="number"
                 value={form.fobPaymentCount}
                 onChange={(value) => update('fobPaymentCount', value)}
-              />
+              
             </div>
           </StepCard>
 
@@ -488,15 +534,15 @@ export default function FclOperationalSimulator({
               <Field type="number" label="IVA %" value={form.ivaPercent} onChange={(v) => update('ivaPercent', v)} />
               <Field type="number" label="ICE %" value={form.icePercent} onChange={(v) => update('icePercent', v)} />
 
-              <SelectField
-                label="Método de pago"
-                value={form.paymentMethod}
-                onChange={(v) => update('paymentMethod', v)}
-                options={[
-                  ['ALIBABA', 'Alibaba'],
-                  ['CHILE', 'Chile'],
-                ]}
-              />
+            <SelectField
+              label="Método de pago"
+              value={form.paymentMethod}
+              onChange={(v) => update('paymentMethod', v)}
+              options={[
+                ['SWIFT', 'SWIFT / Transferencia'],
+                ['ALIBABA', 'Alibaba'],
+              ]}
+            />
 
               <SelectField
                 label="Cliente paga en USD"
@@ -528,6 +574,94 @@ export default function FclOperationalSimulator({
                 ]}
               />
             </div>
+
+            {Number(form.fobPaymentCount || 1) > 1 && (
+              <div className="mt-6 rounded-2xl border border-orange-200 bg-orange-50 p-5">
+                <div className="mb-4">
+                  <h4 className="font-black text-slate-900">
+                    Distribución de pagos FOB
+                  </h4>
+
+                  <p className="mt-1 text-sm text-slate-500">
+                    Cada cuota puede utilizar Alibaba o SWIFT / Transferencia.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {Array.from({
+                    length: Math.min(
+                      Math.max(Number(form.fobPaymentCount || 1), 2),
+                      4
+                    ),
+                  }).map((_, index) => {
+                    const number = index + 1;
+
+                    return (
+                      <div
+                        key={number}
+                        className="grid gap-4 rounded-2xl border border-orange-100 bg-white p-4 md:grid-cols-2"
+                      >
+                        <Field
+                          type="number"
+                          label={`Cuota ${number} - Monto USD`}
+                          value={form[`payment${number}AmountUsd`]}
+                          onChange={(value) =>
+                            update(`payment${number}AmountUsd`, value)
+                          }
+                        />
+
+                        <SelectField
+                          label={`Cuota ${number} - Método`}
+                          value={form[`payment${number}Method`]}
+                          onChange={(value) =>
+                            update(`payment${number}Method`, value)
+                          }
+                          options={[
+                            ['SWIFT', 'SWIFT / Transferencia'],
+                            ['ALIBABA', 'Alibaba'],
+                          ]}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {(() => {
+                  const count = Math.min(
+                    Math.max(Number(form.fobPaymentCount || 1), 2),
+                    4
+                  );
+
+                  const installmentsTotal = Array.from(
+                    { length: count },
+                    (_, index) =>
+                      Number(
+                        form[`payment${index + 1}AmountUsd`] || 0
+                      )
+                  ).reduce((sum, value) => sum + value, 0);
+
+                  const fob = Number(form.fobUsd || 0);
+                  const matches =
+                    Math.abs(installmentsTotal - fob) < 0.01;
+
+                  return (
+                    <div
+                      className={`mt-4 rounded-xl px-4 py-3 text-sm font-bold ${
+                        matches
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-rose-100 text-rose-700'
+                      }`}
+                    >
+                      Total cuotas: USD {installmentsTotal.toFixed(2)}
+                      {' · '}
+                      FOB: USD {fob.toFixed(2)}
+                      {' · '}
+                      {matches ? '✓ Coincide' : 'La suma debe coincidir con el FOB'}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </StepCard>
 
           <StepCard step="Paso 5" title="Tarifas calculadas">
