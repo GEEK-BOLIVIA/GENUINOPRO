@@ -680,7 +680,7 @@ async function handleCalculationModeChange(mode) {
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <button
               type="button"
-              disabled={true}
+              disabled={savingPolicy || !calculationPolicy}
               onClick={() =>
                 handleCalculationModeChange('MODALITY')
               }
@@ -700,9 +700,7 @@ async function handleCalculationModeChange(mode) {
                     Mantiene las reglas propias ya validadas para
                     LCL, FCL, HBL y Aéreo.
                   </p>
-                  <p className="mt-2 text-xs font-bold text-orange-600">
-                    Disponible cuando finalice la integración con los motores de cálculo.
-                  </p>
+
                 </div>
 
                 <div
@@ -717,7 +715,7 @@ async function handleCalculationModeChange(mode) {
 
             <button
               type="button"
-              disabled={savingPolicy || !calculationPolicy}
+              disabled={true}
               onClick={() =>
                 handleCalculationModeChange('LIQUIDATION')
               }
@@ -737,6 +735,9 @@ async function handleCalculationModeChange(mode) {
                     Utiliza la configuración general vigente
                     definida por Genuino para liquidación,
                     normativa y contexto de importaciones.
+                  </p>
+                  <p className="mt-2 text-xs font-bold text-orange-600">
+                    Disponible cuando finalice la integración con los motores de cálculo.
                   </p>
 
                 </div>
