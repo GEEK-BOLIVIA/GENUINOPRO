@@ -35,20 +35,50 @@ public class CalculationParameterService {
     }
 
     @Transactional(readOnly = true)
-    public CalculationParameter findActive(
-            String scope,
-            String code
-    ) {
-        return repository
-                .findFirstByScopeAndCodeAndActiveTrueOrderByVersionDesc(
-                        normalizeScope(scope),
-                        normalizeCode(code)
-                )
-                .orElseThrow(() -> new IllegalStateException(
-                        "No existe parámetro activo para "
-                                + scope + " / " + code
-                ));
+public CalculationParameter findActive(
+        String scope,
+        String code
+) {
+    String safeScope = normalizeScope(scope);
+    String safeCode = normalizeCode(code);
+
+    var specific =
+            repository
+                    .findFirstByScopeAndCodeAndActiveTrueOrderByVersionDesc(
+                            safeScope,
+                            safeCode
+                    );
+
+    if (specific.isPresent()) {
+        return specific.get();
     }
+
+    // Si la modalidad no tiene un valor particular,
+    // heredamos el parámetro GENERAL.
+    if (!"GENERAL".equals(safeScope)) {
+
+        var general =
+                repository
+                        .findFirstByScopeAndCodeAndActiveTrueOrderByVersionDesc(
+                                "GENERAL",
+                                safeCode
+                        );
+
+        if (general.isPresent()) {
+            return general.get();
+        }
+    }
+
+    throw new IllegalStateException(
+            "No existe parámetro activo para "
+                    + safeScope + " / " + safeCode
+                    + (
+                        "GENERAL".equals(safeScope)
+                                ? ""
+                                : " ni un valor GENERAL de respaldo"
+                    )
+    );
+}
 
     @Transactional(readOnly = true)
     public BigDecimal findNumericValue(
@@ -67,6 +97,27 @@ public class CalculationParameterService {
 
         return parameter.getNumericValue();
     }
+
+@Transactional(readOnly = true)
+public String findTextValue(
+        String scope,
+        String code
+) {
+    CalculationParameter parameter =
+            findActive(scope, code);
+
+    if (parameter.getTextValue() == null
+            || parameter.getTextValue().isBlank()) {
+        throw new IllegalStateException(
+                "El parámetro " + scope + " / " + code
+                        + " no tiene valor de texto."
+        );
+    }
+
+    return parameter.getTextValue()
+            .trim()
+            .toUpperCase();
+}
 
     @Transactional
     public CalculationParameter create(

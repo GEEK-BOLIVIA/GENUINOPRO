@@ -258,7 +258,7 @@ private BigDecimal calculateCustomsTaxes(
 
         ivaRate =
                 calculationParameterService.findNumericValue(
-                        "GENERAL",
+                        "LCL",
                         "IVA_PERCENT"
                 );
 
@@ -266,13 +266,15 @@ private BigDecimal calculateCustomsTaxes(
         ivaRate = percent(ivaPercentage);
         }
 
-        BigDecimal iceRate = percent(icePercentage);
+        BigDecimal iceRate =
+                percent(icePercentage);
 
         BigDecimal insuranceRate =
                 calculationParameterService.findNumericValue(
-                        "GENERAL",
+                        "LCL",
                         "INSURANCE_PERCENT_DEFAULT"
                 );
+
 
         BigDecimal insuranceUsd =
                 fob.multiply(insuranceRate);

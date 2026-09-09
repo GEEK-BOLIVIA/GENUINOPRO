@@ -49,6 +49,8 @@ import com.genuino.crm.customerprofile.ProformaCustomerSnapshotService;
 
 import java.time.LocalDate;
 
+import com.genuino.crm.quoting.common.service.CalculationSnapshotService;
+
 @Service
 public class TypedLclProformaService {
 
@@ -67,6 +69,7 @@ public class TypedLclProformaService {
     private final ProformaAccessService proformaAccessService;
 
     private final ProformaCustomerSnapshotService customerSnapshotService;
+    private final CalculationSnapshotService calculationSnapshotService;
 
 
     private void validateApprovalRole(BigDecimal total, String actorRole, String type) {
@@ -112,7 +115,8 @@ public class TypedLclProformaService {
             OpportunityRepository opportunityRepository,
             CommercialTaskService commercialTaskService,
             ProformaAccessService proformaAccessService,
-            ProformaCustomerSnapshotService customerSnapshotService
+            ProformaCustomerSnapshotService customerSnapshotService,
+            CalculationSnapshotService calculationSnapshotService
     ) {
         this.typedProformaRepository = typedProformaRepository;
         this.typedProformaLclRepository = typedProformaLclRepository;
@@ -125,6 +129,8 @@ public class TypedLclProformaService {
         this.commercialTaskService = commercialTaskService;
         this.proformaAccessService = proformaAccessService;
         this.customerSnapshotService = customerSnapshotService;
+        
+        this.calculationSnapshotService = calculationSnapshotService;
     }
 
     @Transactional
@@ -376,6 +382,12 @@ public class TypedLclProformaService {
             typedProformaChargeLineRepository.save(line);
         }
 
+        calculationSnapshotService.createInitialSnapshot(
+                proformaId,
+                request,
+                calc
+        );
+
         return getById(proformaId);
     }
 
@@ -480,6 +492,12 @@ public class TypedLclProformaService {
 
             typedProformaChargeLineRepository.save(line);
         }
+
+        calculationSnapshotService.createNextSnapshot(
+                id,
+                request,
+                calc
+        );
 
         return getById(id);
     }
@@ -683,9 +701,18 @@ public class TypedLclProformaService {
             }
         }
 
-        typedProformaLclRepository.save(lcl);
+                typedProformaLclRepository.save(lcl);
 
-        return getById(id);
+                TypedLclProformaDetailResponse updated =
+                        getById(id);
+
+                calculationSnapshotService.createNextSnapshot(
+                        id,
+                        request,
+                        updated
+                );
+
+                return updated;
     }
 
     @Transactional

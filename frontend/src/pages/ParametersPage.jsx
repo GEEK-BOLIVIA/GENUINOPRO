@@ -53,10 +53,22 @@ const RATE_OPTIONS = {
     'COMISION_GENUINO',
     'COMISION_TRANSFERENCIA',
     'GIRO_ALIBABA_PERCENT',
+    'SWIFT_USD_YES_FIXED',
+    'SWIFT_USD_YES_PERCENT',
+    'SWIFT_USD_NO_FIXED',
+    'SWIFT_USD_NO_PERCENT',
   ],
   HBL: ['EMISION_HBL', 'HANDLING', 'DOCUMENTACION'],
   AEREO: ['PESO_REAL', 'PESO_VOLUMETRICO', 'AWB', 'HANDLING'],
 };
+
+const RATE_LABELS = { CBM:'Tarifa por CBM', TON:'Tarifa por tonelada', GIRO_PERCENT:'Comisión de giro (%)', ALBO:'Gastos de despacho / ALBO', COMISION_GENUINO:'Comisión Genuino Importaciones', COMISION_TRANSFERENCIA:'Comisión por transferencia', FCL20:"Flete contenedor 20'", FCL40:"Flete contenedor 40'", FCL40HQ:'Flete contenedor 40HQ', ADA:'ADA', DESPACHANTE:'Comisión agencia despachante', GASTOS_EXTRA_NIT:'Gastos adicionales por NIT Genuino', GIRO_ALIBABA_PERCENT:'Comisión Alibaba (%)', SWIFT_USD_YES_FIXED:'SWIFT — cliente paga en USD (monto fijo)', SWIFT_USD_YES_PERCENT:'SWIFT — cliente paga en USD (%)', SWIFT_USD_NO_FIXED:'SWIFT — cliente no paga en USD (monto fijo)', SWIFT_USD_NO_PERCENT:'SWIFT — cliente no paga en USD (%)', EMISION_HBL:'Emisión HBL', HANDLING:'Manejo / Handling', DOCUMENTACION:'Documentación', PESO_REAL:'Peso real', PESO_VOLUMETRICO:'Peso volumétrico', AWB:'Guía aérea (AWB)' };
+const PARAMETER_LABELS = { INSURANCE_PERCENT_DEFAULT:'Seguro por defecto', IVA_PERCENT:'IVA', CUSTOMS_FREIGHT_PERCENT:'Flete para efectos aduaneros', CUSTOMS_INSURANCE_PERCENT:'Seguro para efectos aduaneros', CUSTOMS_FREIGHT_RATE:'Tarifa de flete para Aduana', MARITIME_SELL_MARKUP_USD:'Margen comercial de transporte marítimo', INLAND_SELL_MARKUP_USD:'Margen comercial de transporte terrestre', CUSTOMS_MARITIME_ADJUSTMENT_USD:'Ajuste marítimo para Aduana', CUSTOMS_INLAND_ADJUSTMENT_USD:'Ajuste terrestre para Aduana', EXCHANGE_RATE:'Tipo de cambio comercial', TAX_EXCHANGE_RATE:'Tipo de cambio para impuestos', GA_PERCENT:'Gravamen arancelario (GA)', ICE_PERCENT:'ICE', CUSTOMS_FREIGHT_USD_PER_CBM: 'Flete aduanero por CBM', };
+const UNIT_LABELS = { PERCENT:'Porcentaje (%)', RATE:'Tipo de cambio / tasa', USD:'Dólares (USD)', BOB:'Bolivianos (Bs)', BOOLEAN:'Sí / No', TEXT:'Texto' };
+function humanizeCode(code){ if(!code) return '—'; return String(code).replaceAll('_',' ').toLowerCase().replace(/(^|\s)\S/g,c=>c.toUpperCase()); }
+function getRateLabel(code){ return RATE_LABELS[code] || humanizeCode(code); }
+function getParameterLabel(code){ return PARAMETER_LABELS[code] || humanizeCode(code); }
+function getUnitLabel(unit){ return UNIT_LABELS[unit] || humanizeCode(unit); }
 
 const UNIT_OPTIONS = [
   { key: 'PERCENT', label: 'Porcentaje (%)' },
@@ -127,7 +139,9 @@ export default function ParametersPage() {
   const [loadingParameters, setLoadingParameters] = useState(false);
   const [savingParameter, setSavingParameter] = useState(false);
   const [parameterModalOpen, setParameterModalOpen] = useState(false);
-  const [parameterForm, setParameterForm] = useState(emptyCalculationForm);
+  
+  const [calculationPolicy, setCalculationPolicy] = useState(null);
+  const [savingPolicy, setSavingPolicy] = useState(false);
 
   const [includeInactive, setIncludeInactive] = useState(false);
 
@@ -166,6 +180,33 @@ export default function ParametersPage() {
       setLoadingParameters(false);
     }
   }
+
+  async function loadCalculationPolicy() {
+    try {
+      const data = await getCalculationParameters('GENERAL', false);
+
+      const policy = Array.isArray(data)
+        ? data.find(
+            (item) =>
+              item.code === 'CALCULATION_MODE' &&
+              item.active
+          )
+        : null;
+
+      setCalculationPolicy(policy);
+    } catch (error) {
+      console.error(
+        'No se pudo cargar la política de cálculo',
+        error
+      );
+    }
+  }
+
+  useEffect(() => {
+    if (section === 'CALCULATION') {
+      loadCalculationPolicy();
+    }
+  }, [section]);
 
   useEffect(() => {
     if (section === 'RATES') loadRates(activeType);
@@ -268,6 +309,63 @@ export default function ParametersPage() {
       alert('No se pudo reactivar la tarifa.');
     }
   }
+
+async function handleCalculationModeChange(mode) {
+  if (!calculationPolicy) {
+    alert(
+      'No se encontró la configuración global de cálculo.'
+    );
+    return;
+  }
+
+  if (calculationPolicy.textValue === mode) {
+    return;
+  }
+
+  const label =
+    mode === 'LIQUIDATION'
+      ? 'Planilla de Liquidación'
+      : 'Fórmula original de cada modalidad';
+
+  const confirmed = window.confirm(
+    `¿Deseas cambiar el método de cálculo vigente a "${label}"?\n\n` +
+    'La configuración se aplicará a las nuevas proformas. ' +
+    'Las proformas existentes no deben ser recalculadas.'
+  );
+
+  if (!confirmed) return;
+
+  try {
+    setSavingPolicy(true);
+
+    const updated =
+      await updateCalculationParameter(
+        calculationPolicy.id,
+        {
+          ...calculationPolicy,
+          textValue: mode,
+          numericValue: null,
+          unit: 'TEXT',
+          active: true,
+        }
+      );
+
+    setCalculationPolicy(updated);
+
+    if (activeScope === 'GENERAL') {
+      await loadParameters('GENERAL');
+    }
+  } catch (error) {
+    console.error(error);
+
+    alert(
+      error?.message ||
+      'No se pudo cambiar el método de cálculo.'
+    );
+  } finally {
+    setSavingPolicy(false);
+  }
+}
 
   function openCreateParameterModal() {
     setParameterForm({ ...emptyCalculationForm, scope: activeScope });
@@ -507,7 +605,7 @@ export default function ParametersPage() {
             <div className="flex items-center justify-between border-b border-slate-100 p-6">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Tarifas {activeTypeInfo?.label}</h2>
-                <p className="mt-1 text-sm text-slate-500">Tipos configurables: {(RATE_OPTIONS[activeType] || []).join(', ')}</p>
+                <p className="mt-1 text-sm text-slate-500">Tipos configurables: {(RATE_OPTIONS[activeType] || []).map(getRateLabel).join(', ')}</p>
               </div>
             </div>
 
@@ -529,7 +627,7 @@ export default function ParametersPage() {
                   ) : (
                     rates.map((rate) => (
                       <tr key={rate.id} className="hover:bg-slate-50/70">
-                        <td className="px-6 py-4 text-sm font-black text-slate-900">{rate.rateType}</td>
+                        <td className="px-6 py-4 text-sm font-black text-slate-900">{getRateLabel(rate.rateType)}</td>
                         <td className="px-6 py-4 text-sm text-slate-600">{rate.rangeFrom ?? '—'}</td>
                         <td className="px-6 py-4 text-sm text-slate-600">{rate.rangeTo ?? '∞'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-900">{rate.price}</td>
@@ -559,6 +657,118 @@ export default function ParametersPage() {
         </>
       ) : (
         <>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-2">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-orange-600">
+                Política comercial
+              </p>
+
+              <h2 className="mt-1 text-xl font-black text-slate-900">
+                Método de cálculo vigente
+              </h2>
+
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                Define cómo se calcularán las nuevas proformas.
+                Cambiar esta política no debe modificar las
+                proformas ya generadas.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <button
+              type="button"
+              disabled={true}
+              onClick={() =>
+                handleCalculationModeChange('MODALITY')
+              }
+              className={`rounded-3xl border p-5 text-left transition ${
+                calculationPolicy?.textValue === 'MODALITY'
+                  ? 'border-emerald-300 bg-emerald-50 shadow-sm'
+                  : 'border-slate-200 bg-white hover:border-slate-300'
+              } disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    Fórmula original de cada modalidad
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Mantiene las reglas propias ya validadas para
+                    LCL, FCL, HBL y Aéreo.
+                  </p>
+                  <p className="mt-2 text-xs font-bold text-orange-600">
+                    Disponible cuando finalice la integración con los motores de cálculo.
+                  </p>
+                </div>
+
+                <div
+                  className={`mt-1 h-5 w-5 rounded-full border-4 ${
+                    calculationPolicy?.textValue === 'MODALITY'
+                      ? 'border-emerald-500 bg-white'
+                      : 'border-slate-300 bg-white'
+                  }`}
+                />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={savingPolicy || !calculationPolicy}
+              onClick={() =>
+                handleCalculationModeChange('LIQUIDATION')
+              }
+              className={`rounded-3xl border p-5 text-left transition ${
+                calculationPolicy?.textValue === 'LIQUIDATION'
+                  ? 'border-orange-300 bg-orange-50 shadow-sm'
+                  : 'border-slate-200 bg-white hover:border-orange-200'
+              } disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    Planilla de Liquidación
+                  </h3>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Utiliza la configuración general vigente
+                    definida por Genuino para liquidación,
+                    normativa y contexto de importaciones.
+                  </p>
+                </div>
+
+                <div
+                  className={`mt-1 h-5 w-5 rounded-full border-4 ${
+                    calculationPolicy?.textValue === 'LIQUIDATION'
+                      ? 'border-orange-500 bg-white'
+                      : 'border-slate-300 bg-white'
+                  }`}
+                />
+              </div>
+            </button>
+          </div>
+
+          <div className="mt-5 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Política actual:{' '}
+            <span className="font-black text-slate-900">
+              {calculationPolicy?.textValue === 'LIQUIDATION'
+                ? 'Planilla de Liquidación'
+                : calculationPolicy?.textValue === 'MODALITY'
+                  ? 'Fórmula original de cada modalidad'
+                  : 'Cargando...'}
+            </span>
+
+            {savingPolicy && (
+              <span className="ml-2 text-orange-600">
+                Guardando...
+              </span>
+            )}
+          </div>
+        </section>
+
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {CALCULATION_SCOPES.map((item) => {
               const active = item.key === activeScope;
@@ -584,7 +794,7 @@ export default function ParametersPage() {
               <table className="min-w-full divide-y divide-slate-100">
                 <thead className="bg-slate-50">
                   <tr>
-                    {['Código', 'Descripción', 'Valor', 'Unidad', 'Versión', 'Estado'].map((label) => (
+                    {['Parámetro', 'Descripción', 'Valor', 'Unidad', 'Versión', 'Estado'].map((label) => (
                       <th key={label} className="px-6 py-4 text-left text-xs font-black uppercase tracking-wide text-slate-500">{label}</th>
                     ))}
                     <th className="px-6 py-4 text-right text-xs font-black uppercase tracking-wide text-slate-500">Acciones</th>
@@ -596,12 +806,17 @@ export default function ParametersPage() {
                   ) : parameters.length === 0 ? (
                     <tr><td colSpan="7" className="px-6 py-10 text-center text-sm font-medium text-slate-500">No hay parámetros configurados para {activeScopeInfo?.label}.</td></tr>
                   ) : (
-                    parameters.map((parameter) => (
+                    parameters
+                      .filter(
+                        (parameter) =>
+                          parameter.code !== 'CALCULATION_MODE'
+                      )
+                      .map((parameter) => (
                       <tr key={parameter.id} className="hover:bg-slate-50/70">
-                        <td className="px-6 py-4 text-sm font-black text-slate-900">{parameter.code}</td>
+                        <td className="px-6 py-4 text-sm font-black text-slate-900">{getParameterLabel(parameter.code)}</td>
                         <td className="max-w-md px-6 py-4 text-sm text-slate-600">{parameter.description || '—'}</td>
                         <td className="px-6 py-4 text-sm font-bold text-slate-900">{formatCalculationValue(parameter)}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{parameter.unit}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{getUnitLabel(parameter.unit)}</td>
                         <td className="px-6 py-4 text-sm text-slate-600">{parameter.version}</td>
                         <td className="px-6 py-4">
                           <span className={`rounded-full px-3 py-1 text-xs font-black ${parameter.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -640,7 +855,7 @@ export default function ParametersPage() {
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Tipo de proforma</span><select value={rateForm.proformaType} onChange={(e) => updateRateForm('proformaType', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300">{PROFORMA_TYPES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
-              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Tipo de tarifa</span><select value={rateForm.rateType} onChange={(e) => updateRateForm('rateType', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300">{(RATE_OPTIONS[rateForm.proformaType] || []).map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Tipo de tarifa</span><select value={rateForm.rateType} onChange={(e) => updateRateForm('rateType', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300">{(RATE_OPTIONS[rateForm.proformaType] || []).map((item) => <option key={item} value={item}>{getRateLabel(item)}</option>)}</select></label>
               <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Rango desde</span><input type="number" step="0.01" value={rateForm.rangeFrom} onChange={(e) => updateRateForm('rangeFrom', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder="Ej. 0" /></label>
               <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Rango hasta</span><input type="number" step="0.01" value={rateForm.rangeTo} onChange={(e) => updateRateForm('rangeTo', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder="Vacío = infinito" /></label>
               <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Precio</span><input type="number" step="0.01" value={rateForm.price} onChange={(e) => updateRateForm('price', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300" placeholder="Ej. 220" /></label>
@@ -666,7 +881,7 @@ export default function ParametersPage() {
             </div>
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Alcance</span><select value={parameterForm.scope} onChange={(e) => updateParameterForm('scope', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300">{CALCULATION_SCOPES.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
-              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Código</span><input type="text" value={parameterForm.code} onChange={(e) => updateParameterForm('code', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm uppercase outline-none focus:border-orange-300" placeholder="Ej. IVA_PERCENT" /></label>
+              <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Código interno</span><input type="text" value={parameterForm.code} onChange={(e) => updateParameterForm('code', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm uppercase outline-none focus:border-orange-300" placeholder="Ej. IVA_PERCENT" /></label>
               <label className="space-y-2"><span className="text-sm font-bold text-slate-700">Unidad</span><select value={parameterForm.unit} onChange={(e) => updateParameterForm('unit', e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300">{UNIT_OPTIONS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
 
               {['PERCENT', 'RATE', 'USD', 'BOB'].includes(parameterForm.unit) && (
