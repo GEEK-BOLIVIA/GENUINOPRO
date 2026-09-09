@@ -15,7 +15,7 @@ import java.util.NoSuchElementException;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.genuino.crm.quoting.common.service.CalculationSnapshotService;
 
 import java.util.List;
 
@@ -26,17 +26,20 @@ public class TypedHblProformaService {
     private final TypedHblProformaRepository typedHblProformaRepository;
     private final HblCalculationService calculationService;
     private final HblProformaMapper mapper;
+    private final CalculationSnapshotService calculationSnapshotService;
 
     public TypedHblProformaService(
             TypedProformaRepository typedProformaRepository,
             TypedHblProformaRepository typedHblProformaRepository,
             HblCalculationService calculationService,
-            HblProformaMapper mapper
+            HblProformaMapper mapper,
+            CalculationSnapshotService calculationSnapshotService
     ) {
         this.typedProformaRepository = typedProformaRepository;
         this.typedHblProformaRepository = typedHblProformaRepository;
         this.calculationService = calculationService;
         this.mapper = mapper;
+        this.calculationSnapshotService = calculationSnapshotService;
     }
 
     @Transactional
@@ -63,6 +66,12 @@ public class TypedHblProformaService {
         TypedHblProforma detail = mapper.toEntity(proformaId, request, calculation);
         typedProformaRepository.save(header);
         typedHblProformaRepository.save(detail);
+
+        calculationSnapshotService.createInitialSnapshot(
+                proformaId,
+                request,
+                calculation
+        );
 
         return mapper.toDetail(header, detail);
     }
@@ -100,6 +109,7 @@ public class TypedHblProformaService {
 
         typedHblProformaRepository.save(detail);
 
+
         header.setTotal(calculation.getTotalBob());
         header.setEstimatedProfit(
                 calculation.getGenuinoCommissionBob()
@@ -107,6 +117,12 @@ public class TypedHblProformaService {
         header.setUpdatedAt(LocalDateTime.now());
 
         typedProformaRepository.save(header);
+
+        calculationSnapshotService.createNextSnapshot(
+                id,
+                request,
+                calculation
+        );
 
         return mapper.toDetail(
                 header,

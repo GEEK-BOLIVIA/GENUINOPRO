@@ -25,6 +25,7 @@ import com.genuino.crm.customerprofile.ProformaCustomerSnapshotService;
 import com.genuino.crm.quoting.fcl.dto.TypedFclProformaDetailResponse;
 
 import com.genuino.crm.config.CalculationParameterService;
+import com.genuino.crm.quoting.common.service.CalculationSnapshotService;
 
 @Service
 public class TypedFclProformaService {
@@ -37,6 +38,7 @@ public class TypedFclProformaService {
     private final ProformaAccessService proformaAccessService;
     private final ProformaCustomerSnapshotService customerSnapshotService;
     private final CalculationParameterService calculationParameterService;
+    private final CalculationSnapshotService calculationSnapshotService;
 
     public TypedFclProformaService(
             TypedFclProformaRepository repository,
@@ -46,7 +48,8 @@ public class TypedFclProformaService {
             CommercialTaskService commercialTaskService,
             ProformaAccessService proformaAccessService,
             ProformaCustomerSnapshotService customerSnapshotService,
-            CalculationParameterService calculationParameterService
+            CalculationParameterService calculationParameterService,
+            CalculationSnapshotService calculationSnapshotService
     ) {
         this.repository = repository;
         this.rateService = rateService;
@@ -56,6 +59,7 @@ public class TypedFclProformaService {
         this.proformaAccessService = proformaAccessService;
         this.customerSnapshotService = customerSnapshotService;
         this.calculationParameterService = calculationParameterService;
+        this.calculationSnapshotService = calculationSnapshotService;
     }
 
     @Transactional(readOnly = true)
@@ -167,6 +171,12 @@ public class TypedFclProformaService {
                             OffsetDateTime.now().plusDays(1)
                     );
                 });
+
+                calculationSnapshotService.createInitialSnapshot(
+                        proformaId,
+                        request,
+                        finalSaved
+                );
 
         return finalSaved;
     }
@@ -763,6 +773,12 @@ public class TypedFclProformaService {
             typedProformaRepository.save(parent);
         });
 
+        calculationSnapshotService.createNextSnapshot(
+                id,
+                request,
+                saved
+        );
+        
         return saved;
     }
 }

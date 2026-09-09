@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.genuino.crm.quoting.common.service.CalculationSnapshotService;
 
 @Service
 public class TypedAirProformaService {
@@ -27,18 +28,21 @@ public class TypedAirProformaService {
     private final TypedAirProformaRepository typedAirProformaRepository;
     private final AirCalculationService calculationService;
     private final AirProformaMapper mapper;
+    private final CalculationSnapshotService calculationSnapshotService;
 
-    public TypedAirProformaService(
-            TypedProformaRepository typedProformaRepository,
-            TypedAirProformaRepository typedAirProformaRepository,
-            AirCalculationService calculationService,
-            AirProformaMapper mapper
-    ) {
+        public TypedAirProformaService(
+                TypedProformaRepository typedProformaRepository,
+                TypedAirProformaRepository typedAirProformaRepository,
+                AirCalculationService calculationService,
+                AirProformaMapper mapper,
+                CalculationSnapshotService calculationSnapshotService
+        ) {
         this.typedProformaRepository = typedProformaRepository;
         this.typedAirProformaRepository = typedAirProformaRepository;
         this.calculationService = calculationService;
         this.mapper = mapper;
-    }
+        this.calculationSnapshotService = calculationSnapshotService;
+        }
 
     @Transactional
     public TypedAirProformaDetailResponse create(
@@ -125,6 +129,12 @@ public class TypedAirProformaService {
                 detail
         );
 
+        calculationSnapshotService.createInitialSnapshot(
+                proformaId,
+                request,
+                calculation
+        );
+
         return mapper.toDetail(
                 header,
                 detail
@@ -180,6 +190,12 @@ public class TypedAirProformaService {
 
         typedProformaRepository.save(
                 header
+        );
+
+        calculationSnapshotService.createNextSnapshot(
+                id,
+                request,
+                calculation
         );
 
         return mapper.toDetail(
