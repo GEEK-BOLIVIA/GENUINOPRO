@@ -478,7 +478,7 @@ export default function FclOperationalSimulator({
                   )
                 }
               />
-              <Field type="number" label="Transporte terrestre base Bs." value={form.inlandFreightBob} onChange={(v) => update('inlandFreightBob', v)} />
+              <Field type="number" label="Transporte terrestre base USD." value={form.inlandFreightBob} onChange={(v) => update('inlandFreightBob', v)} />
               <Field
                 type="number"
                 label="Otros gastos Bs"

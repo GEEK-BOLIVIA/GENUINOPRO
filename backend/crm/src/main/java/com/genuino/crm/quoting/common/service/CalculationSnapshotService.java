@@ -3,8 +3,7 @@ package com.genuino.crm.quoting.common.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import com.genuino.crm.config.CalculationParameterService;
-import com.genuino.crm.config.domain.CalculationParameter;
+
 import com.genuino.crm.quoting.common.domain.TypedProformaCalculationSnapshot;
 import com.genuino.crm.quoting.common.infra.TypedProformaCalculationSnapshotRepository;
 import com.genuino.crm.security.SecurityUserService;
@@ -17,53 +16,76 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+
+import com.genuino.crm.config.CalculationPolicyService;
+
+import com.genuino.crm.quoting.common.domain.TypedProforma;
+import com.genuino.crm.quoting.common.infra.TypedProformaRepository;
+
 @Service
 public class CalculationSnapshotService {
 
     private final TypedProformaCalculationSnapshotRepository repository;
-    private final CalculationParameterService parameterService;
+    private final TypedProformaRepository typedProformaRepository;
+    private final CalculationPolicyService calculationPolicyService;
     private final SecurityUserService securityUserService;
     private final ObjectMapper objectMapper;
 
     public CalculationSnapshotService(
             TypedProformaCalculationSnapshotRepository repository,
-            CalculationParameterService parameterService,
+            TypedProformaRepository typedProformaRepository,
+            CalculationPolicyService calculationPolicyService,
             SecurityUserService securityUserService,
             ObjectMapper objectMapper
     ) {
         this.repository = repository;
-        this.parameterService = parameterService;
+        this.typedProformaRepository = typedProformaRepository;
+        this.calculationPolicyService = calculationPolicyService;
         this.securityUserService = securityUserService;
         this.objectMapper = objectMapper;
     }
 
     @Transactional
-    public TypedProformaCalculationSnapshot createInitialSnapshot(
-            UUID proformaId,
-            Object input,
-            Object output
-    ) {
-        CalculationParameter policy =
-                parameterService.findActive(
-                        "GENERAL",
-                        "CALCULATION_MODE"
-                );
+public TypedProformaCalculationSnapshot createInitialSnapshot(
+        UUID proformaId,
+        Object input,
+        Object output
+) {
+    TypedProforma proforma =
+            typedProformaRepository
+                    .findById(proformaId)
+                    .orElseThrow(() ->
+                            new IllegalStateException(
+                                    "No existe la proforma "
+                                            + proformaId
+                                            + " para crear el snapshot."
+                            )
+                    );
 
-        String mode =
-                normalizeMode(
-                        policy.getTextValue()
-                );
+    String modality =
+            proforma.getType().name();
 
-        return saveSnapshot(
-                proformaId,
-                1,
-                mode,
-                policy.getVersion(),
-                input,
-                output,
-                Collections.emptyMap()
-        );
-    }
+    CalculationPolicyService.CalculationPolicyContext context =
+            calculationPolicyService.resolveCurrent(
+                    modality
+            );
+
+    Object parameters =
+            CalculationPolicyService.MODE_LIQUIDATION
+                    .equals(context.mode())
+                    ? context.parameters()
+                    : Collections.emptyMap();
+
+    return saveSnapshot(
+            proformaId,
+            1,
+            context.mode(),
+            context.policyVersion(),
+            input,
+            output,
+            parameters
+    );
+}
 
     @Transactional
     public TypedProformaCalculationSnapshot createNextSnapshot(
@@ -91,16 +113,74 @@ public class CalculationSnapshotService {
         int nextVersion =
                 previous.getCalculationVersion() + 1;
 
-        return saveSnapshot(
+        return saveSnapshotWithParameterJson(
                 proformaId,
                 nextVersion,
                 previous.getCalculationMode(),
                 previous.getCalculationPolicyVersion(),
                 input,
                 output,
-                Collections.emptyMap()
+                previous.getParameterSnapshotJson()
         );
     }
+
+private TypedProformaCalculationSnapshot saveSnapshotWithParameterJson(
+        UUID proformaId,
+        int version,
+        String mode,
+        String policyVersion,
+        Object input,
+        Object output,
+        String parameterSnapshotJson
+) {
+    TypedProformaCalculationSnapshot snapshot =
+            new TypedProformaCalculationSnapshot();
+
+    snapshot.setId(
+            UUID.randomUUID()
+    );
+
+    snapshot.setProformaId(
+            proformaId
+    );
+
+    snapshot.setCalculationVersion(
+            version
+    );
+
+    snapshot.setCalculationMode(
+            normalizeMode(mode)
+    );
+
+    snapshot.setCalculationPolicyVersion(
+            policyVersion
+    );
+
+    snapshot.setInputJson(
+            toJson(input)
+    );
+
+    snapshot.setOutputJson(
+            toJson(output)
+    );
+
+    snapshot.setParameterSnapshotJson(
+            parameterSnapshotJson == null
+                    || parameterSnapshotJson.isBlank()
+                    ? "{}"
+                    : parameterSnapshotJson
+    );
+
+    snapshot.setCreatedAt(
+            LocalDateTime.now()
+    );
+
+    snapshot.setCreatedBy(
+            securityUserService.getCurrentUser()
+    );
+
+    return repository.save(snapshot);
+}
 
     @Transactional(readOnly = true)
     public Optional<TypedProformaCalculationSnapshot> findLatest(
